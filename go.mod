@@ -2,7 +2,10 @@ module LightRDP
 
 go 1.26.9
 
-require github.com/pion/webrtc/v4 v4.2.26
+require (
+	github.com/pion/randutil v0.1.0
+	github.com/pion/webrtc/v4 v4.2.26
+)
 
 require (
 	github.com/google/uuid v1.6.0 // indirect
@@ -12,7 +15,6 @@ require (
 	github.com/pion/interceptor v0.1.51 // indirect
 	github.com/pion/logging v0.2.4 // indirect
 	github.com/pion/mdns/v2 v2.2.2 // indirect
-	github.com/pion/randutil v0.1.0 // indirect
 	github.com/pion/rtcp v1.2.20 // indirect
 	github.com/pion/rtp v1.10.6 // indirect
 	github.com/pion/sctp v1.12.0 // indirect
