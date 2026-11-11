@@ -7,72 +7,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
 	"strings"
-<<<<<<< Updated upstream
-	"time"
-
-	"github.com/pion/randutil"
-	"github.com/pion/webrtc/v4"
-)
-
-func main() {
-	// Configuração do servidor auxiliar de conexão entre os dois peers.
-	// Para conseguirem se conectar mesmo estando atras de NAT ou firewall.
-	config := webrtc.Configuration{
-		ICEServers: []webrtc.ICEServer{
-			{
-				URLs: []string{"localhost:8080"},
-			},
-		},
-	}
-
-	// Criada o par de conexão de um lado.
-	// É uma conexão WebRTC para comunicações peer-to-peer
-	// com outro PeerConnection pelo lado do navegador.
-	// Adiar para fechar essa conexão assim que a aplicação parar.
-	peerCnn, err := webrtc.NewPeerConnection(config)
-	if err != nil {
-		log.Fatalf("Error: %v", err)
-	}
-	defer func() {
-		if err := peerCnn.Close(); err != nil {
-			log.Fatalf("Error: %v", err)
-		}
-	}()
-
-	// Handler para controlar e exibir mudanças no estado da conexão.
-	peerCnn.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
-		fmt.Printf("Peer connection state changed: %s\n", state.String())
-
-		// Muda o estado para falhar se ficar 30 segundos
-		// sem atividade ou algum outro tipo de falha.
-		if state == webrtc.PeerConnectionStateFailed {
-			fmt.Println("Peer connection failed")
-			os.Exit(1)
-		}
-
-		if state == webrtc.PeerConnectionStateClosed {
-			fmt.Println("Peer connection closed")
-			os.Exit(0)
-		}
-	})
-
-	// Criar um novo data channel e fazer o envio de mensagens aleatórias
-	peerCnn.OnDataChannel(func(dataChannel *webrtc.DataChannel) {
-		fmt.Printf("New DataChannel %s %d\n", dataChannel.Label(), dataChannel.ID())
-
-		dataChannel.OnOpen(func() {
-			fmt.Printf("DataChannel %s - %d open. Sending random messages every 5 seconds.", dataChannel.Label(), dataChannel.ID())
-
-			ticker := time.NewTicker(5 * time.Second)
-			defer ticker.Stop()
-
-			for range ticker.C {
-				message, err := randutil.GenerateCryptoRandomString(15, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-=======
 
 	"github.com/pion/webrtc/v5"
 )
@@ -167,56 +106,20 @@ func setupChannel(dc *webrtc.DataChannel) {
 		go func() {
 			for {
 				line, err := stdin.ReadString('\n')
->>>>>>> Stashed changes
 				if err != nil {
-					panic(err)
+					return
 				}
-
-				fmt.Printf("Sending '%s'\n", message)
-				if err := dataChannel.SendText(message); err != nil {
-					panic(err)
+				if line = strings.TrimSpace(line); line != "" {
+					if err := dc.SendText(line); err != nil {
+						fmt.Println("erro ao enviar:", err)
+					}
 				}
 			}
-		})
-
-		dataChannel.OnMessage(func(msg webrtc.DataChannelMessage) {
-			fmt.Printf("Message from DataChannel %s - '%s'\n", dataChannel.Label(), string(msg.Data))
-		})
+		}()
 	})
-
-	offer := webrtc.SessionDescription{}
-	decode(readUntilNewline(), &offer)
-
-	// Cria a SessionDescription remota
-	err = peerCnn.SetRemoteDescription(offer)
-	if err != nil {
-		panic(err)
-	}
-
-	// Cria uma resposta
-	answer, err := peerCnn.CreateAnswer(nil)
-	if err != nil {
-		panic(err)
-	}
-
-	// Crie um canal bloqueado até que a coleta ICE seja concluída.
-	gatherComplete := webrtc.GatheringCompletePromise(peerCnn)
-
-	// Define o LocalDescription e inicia os ouvintes UDP
-	err = peerCnn.SetLocalDescription(answer)
-	if err != nil {
-		panic(err)
-	}
-
-	// Bloqueia até que a coleta ICE esteja concluída, desativando o ICE Trickle.
-	// Isso porque só podemos trocar uma mensagem de sinalização em prod
-	<-gatherComplete
-
-	// Mostra o output em base64
-	fmt.Println(encode(peerCnn.LocalDescription()))
-
-	// Bloqueado para sempre
-	select {}
+	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+		fmt.Printf("< %s\n", string(msg.Data))
+	})
 }
 
 // Leia o stdin no aguardo de uma nova linha.
