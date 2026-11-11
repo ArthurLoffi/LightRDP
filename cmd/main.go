@@ -1,15 +1,17 @@
 package main
 
 import (
+	"LightRDP/config"
+	"LightRDP/connection"
 	"bufio"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"strings"
+<<<<<<< Updated upstream
 	"time"
 
 	"github.com/pion/randutil"
@@ -70,6 +72,102 @@ func main() {
 
 			for range ticker.C {
 				message, err := randutil.GenerateCryptoRandomString(15, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+=======
+
+	"github.com/pion/webrtc/v5"
+)
+
+var URLS = []string{"stun:stun.l.google.com:19302"}
+const CONNECTION_TYPE = "DataChannel"
+var stdin = bufio.NewReader(os.Stdin)
+
+func main() {
+	peerConfig := config.PeerConfig{
+		ICEServers: []webrtc.ICEServer{
+			{URLs: URLS},
+		},
+	}
+
+	cfg := config.NewPeerConfig(peerConfig)
+
+	p, err := connection.NewPeerConnection(cfg, CONNECTION_TYPE)
+	if err != nil {
+		panic(err)
+	}
+	defer p.Close()
+
+	p.PeerHandler()
+
+	mode := flag.String("mode", "", "offer (quem inicia) ou answer (quem responde)")
+	flag.Parse()
+	if *mode != "offer" && *mode != "answer" {
+		fmt.Println("uso: go run . -mode offer|answer")
+	}
+
+	if *mode == "offer" {
+		// Quem faz a offer cria o DataChannel.
+		dc, err := p.PeerCnn.CreateDataChannel("chat", nil)
+		if err != nil {
+			panic(err)
+		}
+		setupChannel(dc)
+
+		offer, err := p.PeerCnn.CreateOffer(nil)
+		if err != nil {
+			panic(err)
+		}
+		gatherComplete := webrtc.GatheringCompletePromise(p.PeerCnn)
+		if err = p.PeerCnn.SetLocalDescription(offer); err != nil {
+			panic(err)
+		}
+		<-gatherComplete
+
+		fmt.Println("\n* OFFER *")
+		fmt.Println(encode(p.PeerCnn.LocalDescription()))
+		fmt.Println("\nCole a ANSWER:")
+
+		answer := webrtc.SessionDescription{}
+		decode(readUntilNewline(), &answer)
+		if err = p.PeerCnn.SetRemoteDescription(answer); err != nil {
+			panic(err)
+		}
+	} else {
+		// Quem responde recebe o DataChannel criado pelo outro lado.
+		p.PeerCnn.OnDataChannel(setupChannel)
+
+		fmt.Println("Cole a OFFER:")
+		offer := webrtc.SessionDescription{}
+		decode(readUntilNewline(), &offer)
+		if err = p.PeerCnn.SetRemoteDescription(offer); err != nil {
+			panic(err)
+		}
+
+		answer, err := p.PeerCnn.CreateAnswer(nil)
+		if err != nil {
+			panic(err)
+		}
+		gatherComplete := webrtc.GatheringCompletePromise(p.PeerCnn)
+		if err = p.PeerCnn.SetLocalDescription(answer); err != nil {
+			panic(err)
+		}
+		<-gatherComplete
+
+		fmt.Println("\n* ANSWER *")
+		fmt.Println(encode(p.PeerCnn.LocalDescription()))
+	}
+
+	select {}
+}
+
+// Configura os handlers do DataChannel: o que for digitado é enviado,
+// o que chegar é impresso.
+func setupChannel(dc *webrtc.DataChannel) {
+	dc.OnOpen(func() {
+		fmt.Printf("\n DataChannel '%s' aberto! Digite mensagens: \n", dc.Label())
+		go func() {
+			for {
+				line, err := stdin.ReadString('\n')
+>>>>>>> Stashed changes
 				if err != nil {
 					panic(err)
 				}
