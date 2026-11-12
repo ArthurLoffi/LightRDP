@@ -49,9 +49,9 @@ func (p *Peer) PeerHandler(onFinish func(webrtc.PeerConnectionState)) {
 		fmt.Printf("Peer connection state changed: %s\n", state.String())
 
 		if state == webrtc.PeerConnectionStateFailed || state == webrtc.PeerConnectionStateClosed {
-		if onFinish != nil {
-			onFinish(state)
+			if onFinish != nil {
+				onFinish(state)
+			}
 		}
-	}
-})
+	})
 }
