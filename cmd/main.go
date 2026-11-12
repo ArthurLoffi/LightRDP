@@ -17,7 +17,9 @@ import (
 )
 
 var URLS = []string{"stun:stun.l.google.com:19302"}
+
 const CONNECTION_TYPE = "DataChannel"
+
 var stdin = bufio.NewReader(os.Stdin)
 
 func main() {
@@ -35,7 +37,12 @@ func main() {
 	}
 	defer p.Close()
 
-	p.PeerHandler()
+	p.PeerHandler(func(s webrtc.PeerConnectionState) {
+		if s == webrtc.PeerConnectionStateFailed {
+			os.Exit(1)
+		}
+		os.Exit(0)
+	})
 
 	mode := flag.String("mode", "", "offer (quem inicia) ou answer (quem responde)")
 	flag.Parse()
