@@ -10,6 +10,8 @@ LightRDP is a remote help desk tool, similar to RustDesk and AnyDesk, built to b
 - `cmd/`: application entry points (`server` and `client`).
 - `internal/`: private packages: peer connections, transport, WebSocket handling, signaling protocol, helpers.
 - `docs/`: user-facing documentation (`app/` for usage, `errors/` for known errors).
+- `specs/`: feature specs (`_TEMPLATE.md` is the template, `done/` holds merged specs).
+- `.claude/commands/`: `/spec` creates a spec, `/implement` implements a spec and opens a PR.
 
 ## Conventions
 - File names: use `snake_case`.
@@ -23,6 +25,12 @@ LightRDP is a remote help desk tool, similar to RustDesk and AnyDesk, built to b
 - Follow the project's error convention, and document every new error in `docs/errors/`.
 - Every new feature or contract change must update the usage documentation in `docs/app/`.
 - Do not change contracts unnecessarily, and always follow the patterns already used in the codebase.
+- Do not add comments to the code. Use clear names instead.
+
+## Specs
+- New features start as a spec in `specs/`, created from `specs/_TEMPLATE.md` (`/spec`).
+- Only implement specs with `Status: Approved` (`/implement`).
+- Spec status flow: `Draft` → `Approved` → `In review` → `Done`. Once merged, move the spec to `specs/done/`.
 
 ## Do NOT
 - Install dependencies without asking first.
