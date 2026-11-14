@@ -17,7 +17,7 @@ var stdin = bufio.NewReader(os.Stdin)
 // o que chegar é impresso.
 func setupChannel(dc *webrtc.DataChannel) {
 	dc.OnOpen(func() {
-		fmt.Printf("\n DataChannel '%s' aberto! Digite mensagens: \n", dc.Label())
+		fmt.Printf("\n DataChannel '%s' aberto! Digite mensagens: \n", sanitize(dc.Label()))
 		go func() {
 			for {
 				line, err := stdin.ReadString('\n')

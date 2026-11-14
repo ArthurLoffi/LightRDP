@@ -137,7 +137,7 @@ func (s *session) handle(msg signaling.Message) error {
 		}
 		var e signaling.ErrorPayload
 		_ = msg.Decode(&e)
-		return errors.New("conexão recusada: " + e.Message)
+		return errors.New("conexão recusada: " + sanitize(e.Message))
 
 	case signaling.TypeError:
 		// Erros só são aceitos quando vêm do servidor.
@@ -148,13 +148,13 @@ func (s *session) handle(msg signaling.Message) error {
 		_ = msg.Decode(&e)
 		// Antes da conexão P2P, erro de sinalização encerra a sessão.
 		if !s.connected.Load() {
-			return errors.New("servidor: " + e.Message)
+			return errors.New("servidor: " + sanitize(e.Message))
 		}
-		fmt.Println("aviso do servidor:", e.Message)
+		fmt.Println("aviso do servidor:", sanitize(e.Message))
 		return nil
 
 	default:
-		fmt.Println("mensagem desconhecida:", msg.Type)
+		fmt.Printf("mensagem desconhecida: %q\n", msg.Type)
 		return nil
 	}
 }
