@@ -20,9 +20,21 @@ const (
 	TypeAnswer Type = "answer"
 	// Payload: webrtc.ICECandidateInit.
 	TypeCandidate Type = "candidate"
-	// Payload: ErrorPayload.
+	// Host -> cliente: recusa o pedido de sessão. Payload: ErrorPayload.
+	TypeReject Type = "reject"
+	// Somente servidor -> cliente (From vazio). Payload: ErrorPayload.
 	TypeError Type = "error"
 )
+
+// Relayable informa se um cliente pode enviar este tipo para outro cliente.
+// register é tratado pelo servidor; error só o servidor pode emitir.
+func Relayable(t Type) bool {
+	switch t {
+	case TypeConnect, TypeOffer, TypeAnswer, TypeCandidate, TypeReject:
+		return true
+	}
+	return false
+}
 
 type Message struct {
 	Type    Type            `json:"type"`

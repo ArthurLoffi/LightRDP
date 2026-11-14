@@ -131,7 +131,19 @@ func (s *session) handle(msg signaling.Message) error {
 		}
 		return s.peer.AddICECandidate(c)
 
+	case signaling.TypeReject:
+		if !s.fromRemote(msg) || s.connected.Load() {
+			return nil
+		}
+		var e signaling.ErrorPayload
+		_ = msg.Decode(&e)
+		return errors.New("conexão recusada: " + e.Message)
+
 	case signaling.TypeError:
+		// Erros só são aceitos quando vêm do servidor.
+		if msg.From != "" {
+			return nil
+		}
 		var e signaling.ErrorPayload
 		_ = msg.Decode(&e)
 		// Antes da conexão P2P, erro de sinalização encerra a sessão.
@@ -150,7 +162,7 @@ func (s *session) handle(msg signaling.Message) error {
 // onConnect é chamado no host quando alguém pede uma sessão.
 func (s *session) onConnect(from string) error {
 	if s.peer != nil {
-		return s.conn.Send(s.ctx, signaling.NewError(from, "host ocupado"))
+		return s.send(signaling.TypeReject, from, signaling.ErrorPayload{Message: "host ocupado"})
 	}
 
 	fmt.Printf("Pedido de conexão de %q\n", from)

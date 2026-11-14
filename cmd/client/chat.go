@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"unicode"
 
 	"github.com/pion/webrtc/v5"
 )
@@ -32,6 +33,22 @@ func setupChannel(dc *webrtc.DataChannel) {
 		}()
 	})
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		fmt.Printf("< %s\n", string(msg.Data))
+		fmt.Printf("< %s\n", sanitize(string(msg.Data)))
 	})
+}
+
+// sanitize remove caracteres de controle (sequências de escape ANSI, \r...)
+// e de direção bidirecional, para que o outro lado não manipule o terminal.
+func sanitize(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r == '\t':
+			return r
+		case unicode.IsControl(r),
+			r >= 0x202A && r <= 0x202E,
+			r >= 0x2066 && r <= 0x2069:
+			return -1
+		}
+		return r
+	}, s)
 }

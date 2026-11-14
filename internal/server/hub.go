@@ -87,6 +87,12 @@ func (h *Hub) route(from *Client, msg signaling.Message) {
 		return
 	}
 
+	// Impede que um cliente emita mensagens que só o servidor pode enviar.
+	if !signaling.Relayable(msg.Type) {
+		from.enqueue(signaling.NewError(from.id, "tipo de mensagem não permitido: "+string(msg.Type)))
+		return
+	}
+
 	// O servidor define o remetente: impede que um cliente se passe por outro.
 	msg.From = from.id
 
