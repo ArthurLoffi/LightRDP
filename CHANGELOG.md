@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Trickle ICE: candidates are sent as soon as they are found.
 - Agent guidelines (`AGENTS.md`, `CLAUDE.md`), documentation structure (`docs/`) and pull request template.
 - Documentation for known errors in `docs/errors/`.
+- Usage guide (`docs/app/getting_started.md`) and chat page (`docs/app/chat/README.md`) (spec 0002).
 
 ### Changed
 - Project layout: `connection/` moved to `internal/peer`, `config/` moved to `internal/config`, client entry point moved to `cmd/client`.
