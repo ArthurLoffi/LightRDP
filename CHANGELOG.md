@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Project layout: `connection/` moved to `internal/peer`, `config/` moved to `internal/config`, client entry point moved to `cmd/client`.
 - The client no longer requires copying and pasting the offer and answer by hand.
 - README rewritten in English with the current usage.
+- Peer connection tests moved from `connection/` to `internal/peer` and updated to the new peer API (`New`, `OnConnectionStateChange`, `CreateOffer`, `HandleOffer`, `HandleAnswer`). Added a test for queued ICE candidates.
 
 ### Security
 - The signaling server only relays `connect`, `offer`, `answer`, `candidate` and `reject` messages, so a client can no longer send fake server errors to another client.
