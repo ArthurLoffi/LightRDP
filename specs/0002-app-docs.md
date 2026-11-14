@@ -5,7 +5,7 @@
 | Status | In review |
 | Author | ArthurLoffi |
 | Created | 2026-11-14 |
-| Pull request | |
+| Pull request | https://github.com/ArthurLoffi/LightRDP/pull/6 |
 
 ## Goal
 Write the user-facing documentation in `docs/app/`: how to run LightRDP, and what each feature it has today does.
