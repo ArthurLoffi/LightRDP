@@ -30,6 +30,7 @@ LightRDP is a remote help desk tool, similar to RustDesk and AnyDesk, built to b
 - Bypass or work around the code in any way. This code must be trustworthy.
 
 ## Commits and PRs
-- Never add yourself as a co-author of commits or PRs, and never mention yourself in commit messages or PR descriptions.
+- Never add yourself as a co-author of commits or PRs, and never mention yourself in commit messages.
+- In PR descriptions, state the AI tool and model used in the "AI usage" section of the template.
 - Never commit directly to the `master` branch.
 - When opening a new PR, use `.github/PULL_REQUEST_TEMPLATE.md`.
