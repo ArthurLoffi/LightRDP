@@ -2,7 +2,10 @@ module LightRDP
 
 go 1.26.9
 
-require github.com/pion/webrtc/v5 v5.0.0-rc.3
+require (
+	github.com/coder/websocket v1.8.15
+	github.com/pion/webrtc/v5 v5.0.0-rc.3
+)
 
 require (
 	github.com/google/uuid v1.6.0 // indirect
