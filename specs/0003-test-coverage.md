@@ -5,7 +5,7 @@
 | Status | In review |
 | Author | ArthurLoffi |
 | Created | 2026-11-14 |
-| Pull request | |
+| Pull request | https://github.com/ArthurLoffi/LightRDP/pull/7 |
 
 ## Goal
 Add automated tests for every package that has none today, and more tests for `internal/peer`, changing only `cmd/server/main.go` so the server setup can be tested.
