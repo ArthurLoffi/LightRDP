@@ -1,6 +1,7 @@
 package peer
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -166,6 +167,232 @@ func TestAddICECandidateBeforeRemoteDescription(t *testing.T) {
 
 	if queued != 1 {
 		t.Fatalf("Expected 1 queued candidate, got: %d", queued)
+	}
+}
+
+func TestCreateDataChannelReachesRemote(t *testing.T) {
+	offerer := newTestPeer(t)
+	answerer := newTestPeer(t)
+
+	labels := make(chan string, 2)
+	answerer.OnDataChannel(func(dc *webrtc.DataChannel) {
+		labels <- dc.Label()
+	})
+
+	dc, err := offerer.CreateDataChannel("chat")
+	if err != nil {
+		t.Fatalf("Expected data channel, got: %v", err)
+	}
+	if dc.Label() != "chat" {
+		t.Fatalf("Expected label 'chat', got: %q", dc.Label())
+	}
+
+	connectPeers(t, offerer, answerer)
+
+	deadline := time.After(10 * time.Second)
+	for {
+		select {
+		case label := <-labels:
+			if label == "chat" {
+				return
+			}
+		case <-deadline:
+			t.Fatal("Expected remote data channel 'chat' before timeout")
+		}
+	}
+}
+
+func TestOnICECandidateAfterCreateOffer(t *testing.T) {
+	peer := newTestPeer(t)
+
+	candidates := make(chan webrtc.ICECandidateInit, 16)
+	peer.OnICECandidate(func(c webrtc.ICECandidateInit) {
+		candidates <- c
+	})
+
+	if _, err := peer.CreateDataChannel("test"); err != nil {
+		t.Fatalf("Expected data channel, got: %v", err)
+	}
+	gathered := webrtc.GatheringCompletePromise(peer.pc)
+	if _, err := peer.CreateOffer(); err != nil {
+		t.Fatalf("Expected offer, got: %v", err)
+	}
+
+	select {
+	case <-gathered:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Expected ICE gathering to complete before timeout")
+	}
+
+	if len(candidates) == 0 {
+		t.Fatal("Expected at least one local candidate, got: none")
+	}
+	for len(candidates) > 0 {
+		if c := <-candidates; c.Candidate == "" {
+			t.Fatalf("Expected non-empty candidate, got: %+v", c)
+		}
+	}
+}
+
+func TestHandleOfferWithInvalidSDP(t *testing.T) {
+	peer := newTestPeer(t)
+
+	_, err := peer.HandleOffer(webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: "invalid"})
+	if err == nil {
+		t.Fatal("Expected error for invalid offer, got: nil")
+	}
+	if !strings.HasPrefix(err.Error(), "peer: set remote offer") {
+		t.Fatalf("Expected error to start with 'peer: set remote offer', got: %v", err)
+	}
+}
+
+func TestHandleAnswerWithoutLocalOffer(t *testing.T) {
+	offerer := newTestPeer(t)
+	answerer := newTestPeer(t)
+
+	if _, err := offerer.CreateDataChannel("test"); err != nil {
+		t.Fatalf("Expected data channel, got: %v", err)
+	}
+	offer, err := offerer.CreateOffer()
+	if err != nil {
+		t.Fatalf("Expected offer, got: %v", err)
+	}
+	answer, err := answerer.HandleOffer(offer)
+	if err != nil {
+		t.Fatalf("Expected answer, got: %v", err)
+	}
+
+	other := newTestPeer(t)
+	err = other.HandleAnswer(answer)
+	if err == nil {
+		t.Fatal("Expected error for answer without local offer, got: nil")
+	}
+	if !strings.HasPrefix(err.Error(), "peer: set remote answer") {
+		t.Fatalf("Expected error to start with 'peer: set remote answer', got: %v", err)
+	}
+}
+
+func TestQueuedCandidatesAreApplied(t *testing.T) {
+	offerer := newTestPeer(t)
+	answerer := newTestPeer(t)
+
+	if _, err := offerer.CreateDataChannel("test"); err != nil {
+		t.Fatalf("Expected data channel, got: %v", err)
+	}
+	offer, offererCandidates := offerWithCandidates(t, offerer)
+
+	for _, c := range offererCandidates {
+		if err := answerer.AddICECandidate(c); err != nil {
+			t.Fatalf("Expected candidate queued, got: %v", err)
+		}
+	}
+	assertPending(t, answerer, len(offererCandidates))
+
+	answerCandidates := collectCandidates(answerer)
+	answerGathered := webrtc.GatheringCompletePromise(answerer.pc)
+	answer, err := answerer.HandleOffer(offer)
+	if err != nil {
+		t.Fatalf("Expected answer, got: %v", err)
+	}
+	assertPending(t, answerer, 0)
+
+	waitGathered(t, answerGathered)
+	for _, c := range drainCandidates(answerCandidates) {
+		if err := offerer.AddICECandidate(c); err != nil {
+			t.Fatalf("Expected candidate queued, got: %v", err)
+		}
+	}
+
+	if err := offerer.HandleAnswer(answer); err != nil {
+		t.Fatalf("Expected answer applied, got: %v", err)
+	}
+	assertPending(t, offerer, 0)
+
+	waitForState(t, offerer, webrtc.PeerConnectionStateConnected)
+	waitForState(t, answerer, webrtc.PeerConnectionStateConnected)
+}
+
+func TestCreateOfferOnClosedPeer(t *testing.T) {
+	peer := newTestPeer(t)
+	if err := peer.Close(); err != nil {
+		t.Fatalf("Expected close without error, got: %v", err)
+	}
+
+	_, err := peer.CreateOffer()
+	if err == nil {
+		t.Fatal("Expected error on closed peer, got: nil")
+	}
+	if !strings.HasPrefix(err.Error(), "peer: create offer") {
+		t.Fatalf("Expected error to start with 'peer: create offer', got: %v", err)
+	}
+}
+
+func newTestPeer(t *testing.T) *Peer {
+	t.Helper()
+
+	peer, err := New(webrtc.Configuration{})
+	if err != nil {
+		t.Fatalf("Expected new peer connection, got: %v", err)
+	}
+	t.Cleanup(func() { peer.Close() })
+
+	return peer
+}
+
+func collectCandidates(peer *Peer) chan webrtc.ICECandidateInit {
+	candidates := make(chan webrtc.ICECandidateInit, 64)
+	peer.OnICECandidate(func(c webrtc.ICECandidateInit) {
+		candidates <- c
+	})
+	return candidates
+}
+
+func drainCandidates(candidates chan webrtc.ICECandidateInit) []webrtc.ICECandidateInit {
+	var all []webrtc.ICECandidateInit
+	for len(candidates) > 0 {
+		all = append(all, <-candidates)
+	}
+	return all
+}
+
+func waitGathered(t *testing.T, gathered <-chan struct{}) {
+	t.Helper()
+
+	select {
+	case <-gathered:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Expected ICE gathering to complete before timeout")
+	}
+}
+
+func offerWithCandidates(t *testing.T, peer *Peer) (webrtc.SessionDescription, []webrtc.ICECandidateInit) {
+	t.Helper()
+
+	candidates := collectCandidates(peer)
+	gathered := webrtc.GatheringCompletePromise(peer.pc)
+
+	offer, err := peer.CreateOffer()
+	if err != nil {
+		t.Fatalf("Expected offer, got: %v", err)
+	}
+	waitGathered(t, gathered)
+
+	all := drainCandidates(candidates)
+	if len(all) == 0 {
+		t.Fatal("Expected local candidates, got: none")
+	}
+	return offer, all
+}
+
+func assertPending(t *testing.T, peer *Peer, want int) {
+	t.Helper()
+
+	peer.mu.Lock()
+	got := len(peer.pending)
+	peer.mu.Unlock()
+
+	if got != want {
+		t.Fatalf("Expected %d queued candidates, got: %d", want, got)
 	}
 }
 

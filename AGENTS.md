@@ -42,3 +42,4 @@ LightRDP is a remote help desk tool, similar to RustDesk and AnyDesk, built to b
 - In PR descriptions, state the AI tool and model used in the "AI usage" section of the template.
 - Never commit directly to the `master` branch.
 - When opening a new PR, use `.github/PULL_REQUEST_TEMPLATE.md`.
+- The branch name should not carry the spec number, only a description of what was done
