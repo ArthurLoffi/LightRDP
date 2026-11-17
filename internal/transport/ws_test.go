@@ -142,7 +142,7 @@ func TestMessages(t *testing.T) {
 	conn := dialTestServer(t, ts.url)
 	server := ts.serverConn(t)
 
-	want := signaling.NewError("alice", "id vazio")
+	want := signaling.NewError("alice", "empty id")
 
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()

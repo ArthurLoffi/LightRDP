@@ -28,7 +28,7 @@ On the computer that will run the server:
 ```
 go run ./cmd/server
 ```
-You will see a line with `servidor de sinalização ouvindo`. Leave this terminal open.
+You will see a line with `signaling server listening`. Leave this terminal open.
 
 | Option | What it does | Default |
 |---|---|---|
@@ -49,8 +49,8 @@ go run ./cmd/client -mode host -id HOST -server ws://<SERVER_IP>:8080/ws
 ```
 You will see:
 ```
-Conectado ao servidor como "HOST"
-Aguardando conexões...
+Connected to server as "HOST"
+Waiting for connections...
 ```
 Tell the person who will connect the ID you chose (`HOST` in this example).
 
@@ -61,34 +61,34 @@ go run ./cmd/client -mode join -peer HOST -server ws://<SERVER_IP>:8080/ws
 ```
 You will see:
 ```
-Conectado ao servidor como "<YOUR_ID>"
-Pedido enviado para "HOST"
-Aguardando confirmação do host...
+Connected to server as "<YOUR_ID>"
+Request sent to "HOST"
+Waiting for host confirmation...
 ```
 
 ## 4. Accept the connection on the host
 On the host, this appears:
 ```
-Pedido de conexão de "<YOUR_ID>"
-Aceitar? [s/N]
+Connection request from "<YOUR_ID>"
+Accept? [y/N]
 ```
-Type `s` and press Enter to accept. Any other answer, or just Enter, refuses the request. Nothing is exchanged between the two computers before the host accepts.
+Type `y` and press Enter to accept. Any other answer, or just Enter, refuses the request. Nothing is exchanged between the two computers before the host accepts.
 
-Read the ID before answering. Anything typed before the question appears, or in the first second after it, is ignored, and the host shows `Resposta ignorada: rápida demais. Aceitar? [s/N]`. Just answer again. This keeps a late answer meant for an earlier request from accepting someone else.
+Read the ID before answering. Anything typed before the question appears, or in the first second after it, is ignored, and the host shows `Answer ignored: too fast. Accept? [y/N]`. Just answer again. This keeps a late answer meant for an earlier request from accepting someone else.
 
 If nobody answers within 60 seconds, the request is refused. After a refusal, the host keeps waiting for new requests.
 
 | What happens | Host shows | Client shows |
 |---|---|---|
-| Host answers `s` | The connection starts | The connection starts |
-| Host answers anything else | `Pedido de "<YOUR_ID>" recusado.` | `erro: conexão recusada: recusado pelo host` |
-| No answer in 60 seconds | `Pedido de "<YOUR_ID>" recusado: tempo esgotado.` | `erro: conexão recusada: tempo esgotado aguardando o host` |
+| Host answers `y` | The connection starts | The connection starts |
+| Host answers anything else | `Request from "<YOUR_ID>" refused.` | `error: connection refused: refused by host` |
+| No answer in 60 seconds | `Request from "<YOUR_ID>" refused: timed out.` | `error: connection refused: timed out waiting for host` |
 
 When the connection is ready, both computers show:
 ```
 Peer connection state changed: connected
 
- DataChannel 'chat' aberto! Digite mensagens:
+ DataChannel 'chat' open! Type messages:
 ```
 You can now use the [Chat](chat/README.md).
 
@@ -109,18 +109,18 @@ The other computer notices after about 30 seconds. It shows:
 ```
 Peer connection state changed: disconnected
 Peer connection state changed: failed
-erro: peer connection failed
+error: peer connection failed
 ```
-This is expected. It may also show `aviso do servidor: destino não encontrado: <ID>` before that, which can be ignored.
+This is expected. It may also show `server notice: target not found: <ID>` before that, which can be ignored.
 
 After a session ends, the host stops. To accept a new connection, start the host again.
 
 Press `Ctrl+C` in the server terminal to stop the server.
 
 ## Things to know
-- **One session at a time.** While the host is in a session, or is deciding on a request, other computers that try to connect get `erro: conexão recusada: host ocupado`. See [Host busy](../errors/host_busy.md).
-- **Only accept who you expect.** Anyone on your network who knows the host ID can send a request. Only answer `s` when you know who is connecting. Only run the host on networks you trust, and close it when you are done.
-- **The server can go away.** Once the two computers are connected, the chat keeps working even if the server stops. The client shows `Servidor de sinalização desconectado; chat P2P continua.`.
+- **One session at a time.** While the host is in a session, or is deciding on a request, other computers that try to connect get `error: connection refused: host busy`. See [Host busy](../errors/host_busy.md).
+- **Only accept who you expect.** Anyone on your network who knows the host ID can send a request. Only answer `y` when you know who is connecting. Only run the host on networks you trust, and close it when you are done.
+- **The server can go away.** Once the two computers are connected, the chat keeps working even if the server stops. The client shows `Signaling server disconnected; P2P chat continues.`.
 - **Each ID can be used once.** Two computers cannot use the same ID at the same time. See [ID already registered](../errors/id_already_registered.md).
 
 ## Network
@@ -131,14 +131,14 @@ Press `Ctrl+C` in the server terminal to stop the server.
 ## Something went wrong?
 | What you see | Page |
 |---|---|
-| `uso: client -mode host\|join ...` or `-peer é obrigatório em -mode join` | [Invalid arguments](../errors/invalid_arguments.md) |
-| `erro: transport: dial ...` | [Cannot reach the signaling server](../errors/server_unreachable.md) |
-| `erro: servidor: id já registrado` | [ID already registered](../errors/id_already_registered.md) |
-| `erro: servidor: destino não encontrado: <ID>` | [Host not found](../errors/peer_not_found.md) |
-| `erro: conexão recusada: host ocupado` | [Host busy](../errors/host_busy.md) |
-| `erro: conexão recusada: recusado pelo host` | [Refused by the host](../errors/refused_by_host.md) |
-| `erro: conexão recusada: tempo esgotado aguardando o host` | [Host did not answer in time](../errors/confirmation_timeout.md) |
-| `erro: servidor de sinalização desconectado: ...` | [Signaling server disconnected](../errors/server_disconnected.md) |
-| `erro: peer connection failed` | [Peer connection failed](../errors/peer_connection_failed.md) |
+| `usage: client -mode host\|join ...` or `-peer is required with -mode join` | [Invalid arguments](../errors/invalid_arguments.md) |
+| `error: transport: dial ...` | [Cannot reach the signaling server](../errors/server_unreachable.md) |
+| `error: server: id already registered` | [ID already registered](../errors/id_already_registered.md) |
+| `error: server: target not found: <ID>` | [Host not found](../errors/peer_not_found.md) |
+| `error: connection refused: host busy` | [Host busy](../errors/host_busy.md) |
+| `error: connection refused: refused by host` | [Refused by the host](../errors/refused_by_host.md) |
+| `error: connection refused: timed out waiting for host` | [Host did not answer in time](../errors/confirmation_timeout.md) |
+| `error: signaling server disconnected: ...` | [Signaling server disconnected](../errors/server_disconnected.md) |
+| `error: peer connection failed` | [Peer connection failed](../errors/peer_connection_failed.md) |
 
 All known errors are listed in [Known errors](../errors/README.md).

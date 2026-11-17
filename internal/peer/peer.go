@@ -1,5 +1,5 @@
-// Package peer encapsula a PeerConnection do pion. Não sabe nada de
-// sinalização: quem chama decide como enviar SDP e candidatos ICE.
+// Package peer wraps the pion PeerConnection. It knows nothing about
+// signaling: the caller decides how to send SDP and ICE candidates.
 package peer
 
 import (
@@ -9,21 +9,21 @@ import (
 	"github.com/pion/webrtc/v5"
 )
 
-// Configuração para inicialização de uma conexão Peer
+// Setup for starting a Peer connection
 type Peer struct {
 	pc *webrtc.PeerConnection
 
-	// Candidatos remotos que chegam antes da descrição remota ficam na fila.
+	// Remote candidates that arrive before the remote description are queued.
 	mu        sync.Mutex
 	remoteSet bool
 	pending   []webrtc.ICECandidateInit
 }
 
 func New(config webrtc.Configuration) (*Peer, error) {
-	// Criada o par de conexão de um lado.
-	// É uma conexão WebRTC para comunicações peer-to-peer
-	// com outro PeerConnection pelo lado do navegador.
-	// Quem chama deve fechar a conexão com Close() quando a aplicação parar.
+	// Creates one side of the connection pair.
+	// It is a WebRTC connection for peer-to-peer communication
+	// with another PeerConnection on the browser side.
+	// The caller must close the connection with Close() when the application stops.
 	pc, err := webrtc.NewPeerConnection(config)
 	if err != nil {
 		return nil, fmt.Errorf("peer: new connection: %w", err)
@@ -32,13 +32,13 @@ func New(config webrtc.Configuration) (*Peer, error) {
 	return &Peer{pc: pc}, nil
 }
 
-// Fecha a conexão peer.
+// Closes the peer connection.
 func (p *Peer) Close() error {
 	return p.pc.Close()
 }
 
-// OnICECandidate chama fn para cada candidato local (trickle ICE).
-// O candidato nil, que marca o fim da coleta, é ignorado.
+// OnICECandidate calls fn for each local candidate (trickle ICE).
+// The nil candidate, which marks the end of gathering, is ignored.
 func (p *Peer) OnICECandidate(fn func(webrtc.ICECandidateInit)) {
 	p.pc.OnICECandidate(func(c *webrtc.ICECandidate) {
 		if c != nil {
@@ -51,12 +51,12 @@ func (p *Peer) OnConnectionStateChange(fn func(webrtc.PeerConnectionState)) {
 	p.pc.OnConnectionStateChange(fn)
 }
 
-// OnDataChannel é usado por quem responde: o canal é criado pelo outro lado.
+// OnDataChannel is used by the answerer: the channel is created by the other side.
 func (p *Peer) OnDataChannel(fn func(*webrtc.DataChannel)) {
 	p.pc.OnDataChannel(fn)
 }
 
-// CreateDataChannel é usado por quem faz a offer.
+// CreateDataChannel is used by the offerer.
 func (p *Peer) CreateDataChannel(label string) (*webrtc.DataChannel, error) {
 	dc, err := p.pc.CreateDataChannel(label, nil)
 	if err != nil {
@@ -65,7 +65,7 @@ func (p *Peer) CreateDataChannel(label string) (*webrtc.DataChannel, error) {
 	return dc, nil
 }
 
-// CreateOffer cria a offer e a define como descrição local.
+// CreateOffer creates the offer and sets it as the local description.
 func (p *Peer) CreateOffer() (webrtc.SessionDescription, error) {
 	offer, err := p.pc.CreateOffer(nil)
 	if err != nil {
@@ -77,7 +77,7 @@ func (p *Peer) CreateOffer() (webrtc.SessionDescription, error) {
 	return offer, nil
 }
 
-// HandleOffer aplica a offer remota e devolve a answer local.
+// HandleOffer applies the remote offer and returns the local answer.
 func (p *Peer) HandleOffer(offer webrtc.SessionDescription) (webrtc.SessionDescription, error) {
 	if err := p.setRemote(offer); err != nil {
 		return webrtc.SessionDescription{}, err
@@ -93,13 +93,13 @@ func (p *Peer) HandleOffer(offer webrtc.SessionDescription) (webrtc.SessionDescr
 	return answer, nil
 }
 
-// HandleAnswer aplica a answer remota.
+// HandleAnswer applies the remote answer.
 func (p *Peer) HandleAnswer(answer webrtc.SessionDescription) error {
 	return p.setRemote(answer)
 }
 
-// AddICECandidate adiciona um candidato remoto, ou o enfileira se a
-// descrição remota ainda não chegou.
+// AddICECandidate adds a remote candidate, or queues it if the
+// remote description has not arrived yet.
 func (p *Peer) AddICECandidate(c webrtc.ICECandidateInit) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()

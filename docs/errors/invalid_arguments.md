@@ -1,7 +1,7 @@
 # Invalid arguments
 **Messages:**
-- `uso: client -mode host|join [-server ws://IP:8080/ws] [-id ID] [-peer ID_DO_HOST]`
-- `-peer é obrigatório em -mode join`
+- `usage: client -mode host|join [-server ws://IP:8080/ws] [-id ID] [-peer HOST_ID]`
+- `-peer is required with -mode join`
 
 ## Description
 The client was started with missing or invalid options.

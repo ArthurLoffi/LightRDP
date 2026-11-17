@@ -1,5 +1,5 @@
 # ID already registered
-**Message:** `erro: servidor: id já registrado`
+**Message:** `error: server: id already registered`
 
 ## Description
 The client could not join the signaling server because another machine is already using the same ID.

@@ -12,18 +12,18 @@ import (
 
 const (
 	sendBuffer   = 64
-	maxMsgSize   = 64 << 10 // SDP com candidatos cabe com folga.
+	maxMsgSize   = 64 << 10 // SDP with candidates fits comfortably.
 	writeTimeout = 10 * time.Second
 	pingInterval = 30 * time.Second
 )
 
-// Client representa uma conexão WebSocket com o servidor.
+// Client represents a WebSocket connection to the server.
 type Client struct {
 	hub  *Hub
 	conn *websocket.Conn
 	send chan signaling.Message
 
-	// Escrito apenas pelo Hub, sob h.mu.
+	// Written only by the Hub, under h.mu.
 	id string
 }
 
@@ -37,7 +37,7 @@ func newClient(hub *Hub, conn *websocket.Conn) *Client {
 	}
 }
 
-// run bloqueia até a conexão terminar.
+// run blocks until the connection ends.
 func (c *Client) run(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -48,12 +48,12 @@ func (c *Client) run(ctx context.Context) {
 	c.hub.unregister(c)
 }
 
-// enqueue nunca bloqueia: cliente lento perde a mensagem em vez de travar o hub.
+// enqueue never blocks: a slow client loses the message instead of stalling the hub.
 func (c *Client) enqueue(msg signaling.Message) {
 	select {
 	case c.send <- msg:
 	default:
-		c.hub.log.Warn("fila cheia, mensagem descartada", "id", c.id, "type", msg.Type)
+		c.hub.log.Warn("queue full, message dropped", "id", c.id, "type", msg.Type)
 	}
 }
 
@@ -61,14 +61,14 @@ func (c *Client) readPump(ctx context.Context) {
 	for {
 		var msg signaling.Message
 		if err := wsjson.Read(ctx, c.conn, &msg); err != nil {
-			c.hub.log.Debug("leitura encerrada", "id", c.id, "err", err)
+			c.hub.log.Debug("read ended", "id", c.id, "err", err)
 			return
 		}
 		c.hub.route(c, msg)
 	}
 }
 
-// writePump é o único lugar que escreve mensagens na conexão.
+// writePump is the only place that writes messages to the connection.
 func (c *Client) writePump(ctx context.Context) {
 	ticker := time.NewTicker(pingInterval)
 	defer ticker.Stop()
@@ -88,7 +88,7 @@ func (c *Client) writePump(ctx context.Context) {
 			}
 
 		case <-ticker.C:
-			// Detecta conexões mortas.
+			// Detects dead connections.
 			pctx, cancel := context.WithTimeout(ctx, writeTimeout)
 			err := c.conn.Ping(pctx)
 			cancel()

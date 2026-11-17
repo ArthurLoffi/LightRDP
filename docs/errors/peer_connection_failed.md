@@ -1,5 +1,5 @@
 # Peer connection failed
-**Message:** `erro: peer connection failed`
+**Message:** `error: peer connection failed`
 
 ## Description
 The two machines found each other through the server, but could not open a direct connection, or the connection was lost.

@@ -25,7 +25,7 @@ If `-id` is omitted, a random ID is generated and printed.
 ```
 go run ./cmd/client -mode join -peer HOST -server ws://<SERVER_IP>:8080/ws
 ```
-The host is asked `Aceitar? [s/N]`. Type `s` to accept; any other answer, or no answer within 60 seconds, refuses the request.
+The host is asked `Accept? [y/N]`. Type `y` to accept; any other answer, or no answer within 60 seconds, refuses the request.
 
 Once the connection is established, type messages in either terminal to send them.
 

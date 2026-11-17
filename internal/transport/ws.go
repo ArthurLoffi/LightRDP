@@ -1,4 +1,4 @@
-// Package transport é o lado cliente da conexão com o servidor de sinalização.
+// Package transport is the client side of the connection to the signaling server.
 package transport
 
 import (
@@ -23,7 +23,7 @@ type Conn struct {
 	err error
 }
 
-// Dial conecta ao servidor (ex.: ws://192.168.0.10:8080/ws) e começa a ler.
+// Dial connects to the server (e.g. ws://192.168.0.10:8080/ws) and starts reading.
 func Dial(ctx context.Context, url string) (*Conn, error) {
 	ws, _, err := websocket.Dial(ctx, url, nil)
 	if err != nil {
@@ -42,7 +42,7 @@ func Dial(ctx context.Context, url string) (*Conn, error) {
 	return c, nil
 }
 
-// Send é seguro para chamadas concorrentes.
+// Send is safe for concurrent calls.
 func (c *Conn) Send(ctx context.Context, msg signaling.Message) error {
 	if err := wsjson.Write(ctx, c.ws, msg); err != nil {
 		return fmt.Errorf("transport: send %s: %w", msg.Type, err)
@@ -50,12 +50,12 @@ func (c *Conn) Send(ctx context.Context, msg signaling.Message) error {
 	return nil
 }
 
-// Messages é fechado quando a conexão termina; veja Err.
+// Messages is closed when the connection ends; see Err.
 func (c *Conn) Messages() <-chan signaling.Message {
 	return c.in
 }
 
-// Err retorna o motivo do fim da conexão.
+// Err returns the reason the connection ended.
 func (c *Conn) Err() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

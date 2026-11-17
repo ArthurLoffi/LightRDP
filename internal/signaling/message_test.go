@@ -41,12 +41,12 @@ func TestNewWithNilPayload(t *testing.T) {
 }
 
 func TestNewWithPayload(t *testing.T) {
-	msg, err := New(TypeReject, "alice", "bob", ErrorPayload{Message: "host ocupado"})
+	msg, err := New(TypeReject, "alice", "bob", ErrorPayload{Message: "host busy"})
 	if err != nil {
 		t.Fatalf("Expected message, got: %v", err)
 	}
 
-	want := `{"message":"host ocupado"}`
+	want := `{"message":"host busy"}`
 	if string(msg.Payload) != want {
 		t.Fatalf("Expected payload %s, got: %s", want, msg.Payload)
 	}
@@ -68,7 +68,7 @@ func TestNewWithInvalidPayload(t *testing.T) {
 }
 
 func TestNewError(t *testing.T) {
-	msg := NewError("bob", "id vazio")
+	msg := NewError("bob", "empty id")
 
 	if msg.Type != TypeError {
 		t.Fatalf("Expected type error, got: %q", msg.Type)
@@ -84,8 +84,8 @@ func TestNewError(t *testing.T) {
 	if err := msg.Decode(&payload); err != nil {
 		t.Fatalf("Expected decoded payload, got: %v", err)
 	}
-	if payload.Message != "id vazio" {
-		t.Fatalf("Expected message 'id vazio', got: %q", payload.Message)
+	if payload.Message != "empty id" {
+		t.Fatalf("Expected message 'empty id', got: %q", payload.Message)
 	}
 }
 
@@ -97,8 +97,8 @@ func TestDecodeEmptyPayload(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected error for empty payload, got: nil")
 	}
-	if err.Error() != "signaling: offer sem payload" {
-		t.Fatalf("Expected 'signaling: offer sem payload', got: %v", err)
+	if err.Error() != "signaling: offer has no payload" {
+		t.Fatalf("Expected 'signaling: offer has no payload', got: %v", err)
 	}
 }
 
@@ -116,14 +116,14 @@ func TestDecodeInvalidPayload(t *testing.T) {
 }
 
 func TestDecodeValidPayload(t *testing.T) {
-	msg := Message{Type: TypeReject, Payload: json.RawMessage(`{"message":"recusado"}`)}
+	msg := Message{Type: TypeReject, Payload: json.RawMessage(`{"message":"refused"}`)}
 
 	var payload ErrorPayload
 	if err := msg.Decode(&payload); err != nil {
 		t.Fatalf("Expected decoded payload, got: %v", err)
 	}
-	if payload.Message != "recusado" {
-		t.Fatalf("Expected message 'recusado', got: %q", payload.Message)
+	if payload.Message != "refused" {
+		t.Fatalf("Expected message 'refused', got: %q", payload.Message)
 	}
 }
 

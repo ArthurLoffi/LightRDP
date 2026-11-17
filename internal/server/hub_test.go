@@ -161,8 +161,8 @@ func TestRegisterWithEmptyID(t *testing.T) {
 
 	sendMessage(t, conn, signaling.Message{Type: signaling.TypeRegister})
 
-	if text := errorText(t, readServerError(t, conn)); text != "id vazio" {
-		t.Fatalf("Expected 'id vazio', got: %q", text)
+	if text := errorText(t, readServerError(t, conn)); text != "empty id" {
+		t.Fatalf("Expected 'empty id', got: %q", text)
 	}
 }
 
@@ -174,8 +174,8 @@ func TestRegisterWithIDInUse(t *testing.T) {
 	sendMessage(t, other, signaling.Message{Type: signaling.TypeRegister, From: "alice"})
 
 	msg := readServerError(t, other)
-	if text := errorText(t, msg); text != "id já registrado" {
-		t.Fatalf("Expected 'id já registrado', got: %q", text)
+	if text := errorText(t, msg); text != "id already registered" {
+		t.Fatalf("Expected 'id already registered', got: %q", text)
 	}
 	if msg.To != "alice" {
 		t.Fatalf("Expected To 'alice', got: %q", msg.To)
@@ -188,8 +188,8 @@ func TestRegisterTwiceOnSameConnection(t *testing.T) {
 
 	sendMessage(t, conn, signaling.Message{Type: signaling.TypeRegister, From: "alice2"})
 
-	if text := errorText(t, readServerError(t, conn)); text != "conexão já registrada" {
-		t.Fatalf("Expected 'conexão já registrada', got: %q", text)
+	if text := errorText(t, readServerError(t, conn)); text != "connection already registered" {
+		t.Fatalf("Expected 'connection already registered', got: %q", text)
 	}
 	if _, ok := hub.lookup("alice2"); ok {
 		t.Fatal("Expected 'alice2' not registered")
@@ -204,8 +204,8 @@ func TestSendBeforeRegister(t *testing.T) {
 	sendMessage(t, conn, signaling.Message{Type: signaling.TypeConnect, To: "bob"})
 
 	msg := readServerError(t, conn)
-	if text := errorText(t, msg); text != "registre-se antes de enviar mensagens" {
-		t.Fatalf("Expected 'registre-se antes de enviar mensagens', got: %q", text)
+	if text := errorText(t, msg); text != "register before sending messages" {
+		t.Fatalf("Expected 'register before sending messages', got: %q", text)
 	}
 	if msg.To != "" {
 		t.Fatalf("Expected empty To, got: %q", msg.To)
@@ -222,7 +222,7 @@ func TestSendTypeNotAllowed(t *testing.T) {
 			sendMessage(t, alice, signaling.Message{Type: msgType, To: "bob"})
 
 			msg := readServerError(t, alice)
-			want := "tipo de mensagem não permitido: " + string(msgType)
+			want := "message type not allowed: " + string(msgType)
 			if text := errorText(t, msg); text != want {
 				t.Fatalf("Expected %q, got: %q", want, text)
 			}
@@ -242,8 +242,8 @@ func TestSendToUnknownID(t *testing.T) {
 	sendMessage(t, alice, signaling.Message{Type: signaling.TypeConnect, To: "nobody"})
 
 	msg := readServerError(t, alice)
-	if text := errorText(t, msg); text != "destino não encontrado: nobody" {
-		t.Fatalf("Expected 'destino não encontrado: nobody', got: %q", text)
+	if text := errorText(t, msg); text != "target not found: nobody" {
+		t.Fatalf("Expected 'target not found: nobody', got: %q", text)
 	}
 	if msg.To != "alice" {
 		t.Fatalf("Expected To 'alice', got: %q", msg.To)

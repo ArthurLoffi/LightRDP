@@ -159,7 +159,7 @@ func TestHandleIgnoresErrorFromClient(t *testing.T) {
 	url := newTestHub(t)
 	s := newTestSession(t, url, "alice")
 
-	msg := signaling.Message{Type: signaling.TypeError, From: "eve", To: "alice", Payload: errorPayload(t, "falso")}
+	msg := signaling.Message{Type: signaling.TypeError, From: "eve", To: "alice", Payload: errorPayload(t, "fake")}
 	if err := s.handle(msg); err != nil {
 		t.Fatalf("Expected error from client ignored, got: %v", err)
 	}
@@ -169,12 +169,12 @@ func TestHandleServerErrorBeforeConnect(t *testing.T) {
 	url := newTestHub(t)
 	s := newTestSession(t, url, "alice")
 
-	err := s.handle(signaling.NewError("alice", "destino não encontrado: \x1b[31mbob"))
+	err := s.handle(signaling.NewError("alice", "target not found: \x1b[31mbob"))
 	if err == nil {
 		t.Fatal("Expected session error, got: nil")
 	}
-	if err.Error() != "servidor: destino não encontrado: [31mbob" {
-		t.Fatalf("Expected 'servidor: destino não encontrado: [31mbob', got: %q", err.Error())
+	if err.Error() != "server: target not found: [31mbob" {
+		t.Fatalf("Expected 'server: target not found: [31mbob', got: %q", err.Error())
 	}
 }
 
@@ -183,7 +183,7 @@ func TestHandleServerErrorAfterConnect(t *testing.T) {
 	s := newTestSession(t, url, "alice")
 	s.connected.Store(true)
 
-	if err := s.handle(signaling.NewError("alice", "aviso")); err != nil {
+	if err := s.handle(signaling.NewError("alice", "notice")); err != nil {
 		t.Fatalf("Expected server error after connect not to end the session, got: %v", err)
 	}
 }
@@ -196,13 +196,13 @@ func TestHandleRejectBeforeConnect(t *testing.T) {
 		t.Fatalf("Expected peer started, got: %v", err)
 	}
 
-	msg := signaling.Message{Type: signaling.TypeReject, From: "bob", To: "alice", Payload: errorPayload(t, "host ocupado")}
+	msg := signaling.Message{Type: signaling.TypeReject, From: "bob", To: "alice", Payload: errorPayload(t, "host busy")}
 	err := s.handle(msg)
 	if err == nil {
 		t.Fatal("Expected session error, got: nil")
 	}
-	if err.Error() != "conexão recusada: host ocupado" {
-		t.Fatalf("Expected 'conexão recusada: host ocupado', got: %q", err.Error())
+	if err.Error() != "connection refused: host busy" {
+		t.Fatalf("Expected 'connection refused: host busy', got: %q", err.Error())
 	}
 }
 
@@ -215,7 +215,7 @@ func TestHandleRejectAfterConnect(t *testing.T) {
 	}
 	s.connected.Store(true)
 
-	msg := signaling.Message{Type: signaling.TypeReject, From: "bob", To: "alice", Payload: errorPayload(t, "host ocupado")}
+	msg := signaling.Message{Type: signaling.TypeReject, From: "bob", To: "alice", Payload: errorPayload(t, "host busy")}
 	if err := s.handle(msg); err != nil {
 		t.Fatalf("Expected reject after connect ignored, got: %v", err)
 	}
@@ -239,7 +239,7 @@ func TestHandleConnectWhileBusy(t *testing.T) {
 	if err := host.handle(signaling.Message{Type: signaling.TypeConnect, From: "first", To: "host"}); err != nil {
 		t.Fatalf("Expected first connect pending, got: %v", err)
 	}
-	if err := host.onAnswer(answerAfterGrace(host, "s\n")); err != nil {
+	if err := host.onAnswer(answerAfterGrace(host, "y\n")); err != nil {
 		t.Fatalf("Expected first connect accepted, got: %v", err)
 	}
 	if offer := nextMessage(t, first); offer.Type != signaling.TypeOffer || offer.From != "host" {
@@ -258,8 +258,8 @@ func TestHandleConnectWhileBusy(t *testing.T) {
 	if err := reject.Decode(&payload); err != nil {
 		t.Fatalf("Expected reject payload, got: %v", err)
 	}
-	if payload.Message != "host ocupado" {
-		t.Fatalf("Expected 'host ocupado', got: %q", payload.Message)
+	if payload.Message != "host busy" {
+		t.Fatalf("Expected 'host busy', got: %q", payload.Message)
 	}
 	if host.remoteID != "first" {
 		t.Fatalf("Expected remote to stay 'first', got: %q", host.remoteID)
@@ -308,8 +308,8 @@ func TestLoopReturnsWhenServerDisconnects(t *testing.T) {
 		if err == nil {
 			t.Fatal("Expected error on server disconnect, got: nil")
 		}
-		if !strings.HasPrefix(err.Error(), "servidor de sinalização desconectado: ") {
-			t.Fatalf("Expected 'servidor de sinalização desconectado: ...', got: %q", err.Error())
+		if !strings.HasPrefix(err.Error(), "signaling server disconnected: ") {
+			t.Fatalf("Expected 'signaling server disconnected: ...', got: %q", err.Error())
 		}
 		if websocket.CloseStatus(err) != websocket.StatusGoingAway {
 			t.Fatalf("Expected wrapped close status %v, got: %v", websocket.StatusGoingAway, err)
@@ -333,9 +333,9 @@ func TestHostAndJoinConnect(t *testing.T) {
 	join := helperCommand(t, "join", helperServerEnv+"="+url)
 	joinOut := startHelper(t, join)
 
-	waitForLine(t, hostOut, `Pedido de conexão de "join1"`)
+	waitForLine(t, hostOut, `Connection request from "join1"`)
 	time.Sleep(hostAnswerGrace + 200*time.Millisecond)
-	if _, err := io.WriteString(hostIn, "s\n"); err != nil {
+	if _, err := io.WriteString(hostIn, "y\n"); err != nil {
 		t.Fatalf("Expected confirmation written, got: %v", err)
 	}
 	waitForLine(t, hostOut, "Peer connection state changed: connected")

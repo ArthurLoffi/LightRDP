@@ -4,7 +4,7 @@ Send text messages between the host and the client during a session.
 ## Starting the chat
 The chat opens on its own when the two computers connect. Both show:
 ```
- DataChannel 'chat' aberto! Digite mensagens:
+ DataChannel 'chat' open! Type messages:
 ```
 To connect the computers, see [Getting Started](../getting_started.md).
 

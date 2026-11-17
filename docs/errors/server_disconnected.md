@@ -1,5 +1,5 @@
 # Signaling server disconnected
-**Message:** `erro: servidor de sinalização desconectado: ...`
+**Message:** `error: signaling server disconnected: ...`
 
 ## Description
 The connection to the signaling server was lost before the two machines finished connecting to each other.
@@ -11,6 +11,6 @@ The connection to the signaling server was lost before the two machines finished
 ## Possible solution
 - Make sure the server is running, then start the client again.
 
-If the two machines were already connected, the chat keeps working and the client only shows "Servidor de sinalização desconectado; chat P2P continua.".
+If the two machines were already connected, the chat keeps working and the client only shows "Signaling server disconnected; P2P chat continues.".
 
 _Documented on: 2026-11-13_

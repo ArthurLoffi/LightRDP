@@ -1,5 +1,5 @@
 # Cannot reach the signaling server
-**Message:** `erro: transport: dial ws://<ADDRESS>/ws: ...`
+**Message:** `error: transport: dial ws://<ADDRESS>/ws: ...`
 
 ## Description
 The client could not connect to the signaling server.

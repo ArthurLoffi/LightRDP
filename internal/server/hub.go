@@ -1,5 +1,5 @@
-// Package server implementa o servidor de sinalização: registra clientes por
-// ID e repassa mensagens entre eles. Não conhece WebRTC.
+// Package server implements the signaling server: registers clients by
+// ID and relays messages between them. It knows nothing about WebRTC.
 package server
 
 import (
@@ -11,13 +11,13 @@ import (
 )
 
 var (
-	errIDTaken       = errors.New("id já registrado")
-	errAlreadyNamed  = errors.New("conexão já registrada")
-	errEmptyID       = errors.New("id vazio")
-	errNotRegistered = errors.New("registre-se antes de enviar mensagens")
+	errIDTaken       = errors.New("id already registered")
+	errAlreadyNamed  = errors.New("connection already registered")
+	errEmptyID       = errors.New("empty id")
+	errNotRegistered = errors.New("register before sending messages")
 )
 
-// Hub mantém o mapa id -> cliente e faz o roteamento das mensagens.
+// Hub keeps the id -> client map and routes messages.
 type Hub struct {
 	log *slog.Logger
 
@@ -49,7 +49,7 @@ func (h *Hub) register(c *Client, id string) error {
 
 	c.id = id
 	h.clients[id] = c
-	h.log.Info("cliente registrado", "id", id)
+	h.log.Info("client registered", "id", id)
 
 	return nil
 }
@@ -58,10 +58,10 @@ func (h *Hub) unregister(c *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	// Só remove se o ID ainda aponta para esta conexão.
+	// Only removes it if the ID still points to this connection.
 	if c.id != "" && h.clients[c.id] == c {
 		delete(h.clients, c.id)
-		h.log.Info("cliente removido", "id", c.id)
+		h.log.Info("client removed", "id", c.id)
 	}
 }
 
@@ -73,7 +73,7 @@ func (h *Hub) lookup(id string) (*Client, bool) {
 	return c, ok
 }
 
-// route trata uma mensagem recebida de "from".
+// route handles a message received from "from".
 func (h *Hub) route(from *Client, msg signaling.Message) {
 	if msg.Type == signaling.TypeRegister {
 		if err := h.register(from, msg.From); err != nil {
@@ -87,18 +87,18 @@ func (h *Hub) route(from *Client, msg signaling.Message) {
 		return
 	}
 
-	// Impede que um cliente emita mensagens que só o servidor pode enviar.
+	// Prevents a client from sending messages only the server may send.
 	if !signaling.Relayable(msg.Type) {
-		from.enqueue(signaling.NewError(from.id, "tipo de mensagem não permitido: "+string(msg.Type)))
+		from.enqueue(signaling.NewError(from.id, "message type not allowed: "+string(msg.Type)))
 		return
 	}
 
-	// O servidor define o remetente: impede que um cliente se passe por outro.
+	// The server sets the sender: prevents a client from impersonating another.
 	msg.From = from.id
 
 	target, ok := h.lookup(msg.To)
 	if !ok {
-		from.enqueue(signaling.NewError(from.id, "destino não encontrado: "+msg.To))
+		from.enqueue(signaling.NewError(from.id, "target not found: "+msg.To))
 		return
 	}
 

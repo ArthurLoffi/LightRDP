@@ -81,7 +81,7 @@ func TestConnectWaitsForConfirmation(t *testing.T) {
 		t.Fatalf("Expected pending 'requester', got: %q", host.pendingID)
 	}
 
-	if err := host.onAnswer(answerAfterGrace(host, "s\n")); err != nil {
+	if err := host.onAnswer(answerAfterGrace(host, "y\n")); err != nil {
 		t.Fatalf("Expected accept, got: %v", err)
 	}
 	if offer := nextMessage(t, requester); offer.Type != signaling.TypeOffer || offer.From != "host" {
@@ -93,7 +93,7 @@ func TestConnectWaitsForConfirmation(t *testing.T) {
 }
 
 func TestAcceptAnswers(t *testing.T) {
-	for _, answer := range []string{"s\n", "S\n", "  s \n"} {
+	for _, answer := range []string{"y\n", "Y\n", "  y \n"} {
 		t.Run(strings.TrimSpace(answer), func(t *testing.T) {
 			url := newTestHub(t)
 			host := newTestSession(t, url, "host")
@@ -113,7 +113,7 @@ func TestAcceptAnswers(t *testing.T) {
 }
 
 func TestRefuseAnswers(t *testing.T) {
-	for _, answer := range []string{"n\n", "N\n", "\n", "sim\n", "y\n"} {
+	for _, answer := range []string{"n\n", "N\n", "\n", "yes\n", "s\n", "S\n"} {
 		t.Run(strings.TrimSpace(answer), func(t *testing.T) {
 			url := newTestHub(t)
 			host := newTestSession(t, url, "host")
@@ -126,7 +126,7 @@ func TestRefuseAnswers(t *testing.T) {
 				t.Fatalf("Expected refuse without error, got: %v", err)
 			}
 
-			expectReject(t, requester, "recusado pelo host")
+			expectReject(t, requester, "refused by host")
 			if host.peer != nil || host.pendingID != "" {
 				t.Fatalf("Expected no peer and no pending after refuse, got: peer %v, pending %q", host.peer, host.pendingID)
 			}
@@ -146,7 +146,7 @@ func TestConfirmTimeoutRefuses(t *testing.T) {
 		t.Fatalf("Expected timeout refuse without error, got: %v", err)
 	}
 
-	expectReject(t, requester, "tempo esgotado aguardando o host")
+	expectReject(t, requester, "timed out waiting for host")
 	if host.pendingID != "" || host.confirmExpired != nil {
 		t.Fatalf("Expected pending cleared, got: pending %q", host.pendingID)
 	}
@@ -163,9 +163,9 @@ func TestLateAnswerAfterTimeoutIgnored(t *testing.T) {
 	if err := host.onConfirmTimeout(); err != nil {
 		t.Fatalf("Expected timeout refuse, got: %v", err)
 	}
-	expectReject(t, requester, "tempo esgotado aguardando o host")
+	expectReject(t, requester, "timed out waiting for host")
 
-	if err := host.onAnswer(answerAfterGrace(host, "s\n")); err != nil {
+	if err := host.onAnswer(answerAfterGrace(host, "y\n")); err != nil {
 		t.Fatalf("Expected late answer ignored, got: %v", err)
 	}
 	if host.peer != nil {
@@ -186,7 +186,7 @@ func TestConnectWhilePendingIsBusy(t *testing.T) {
 		t.Fatalf("Expected second connect rejected without error, got: %v", err)
 	}
 
-	expectReject(t, second, "host ocupado")
+	expectReject(t, second, "host busy")
 	if host.pendingID != "first" {
 		t.Fatalf("Expected pending to stay 'first', got: %q", host.pendingID)
 	}
@@ -223,7 +223,7 @@ func TestNewRequestAfterRefusalIsPrompted(t *testing.T) {
 	if err := host.onAnswer(answerAfterGrace(host, "n\n")); err != nil {
 		t.Fatalf("Expected refuse, got: %v", err)
 	}
-	expectReject(t, first, "recusado pelo host")
+	expectReject(t, first, "refused by host")
 
 	if err := host.handle(connectMessage("second")); err != nil {
 		t.Fatalf("Expected second connect pending, got: %v", err)
@@ -231,7 +231,7 @@ func TestNewRequestAfterRefusalIsPrompted(t *testing.T) {
 	if host.pendingID != "second" {
 		t.Fatalf("Expected pending 'second', got: %q", host.pendingID)
 	}
-	if err := host.onAnswer(answerAfterGrace(host, "s\n")); err != nil {
+	if err := host.onAnswer(answerAfterGrace(host, "y\n")); err != nil {
 		t.Fatalf("Expected accept, got: %v", err)
 	}
 	if offer := nextMessage(t, second); offer.Type != signaling.TypeOffer {
@@ -252,7 +252,7 @@ func TestPromptSanitizesRequesterID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected captured output, got: %v", err)
 	}
-	want := "Pedido de conexão de \"eve[31m\"\nAceitar? [s/N] "
+	want := "Connection request from \"eve[31m\"\nAccept? [y/N] "
 	if string(b) != want {
 		t.Fatalf("Expected %q, got: %q", want, string(b))
 	}
@@ -268,7 +268,7 @@ func TestLoopRefusesOnConfirmTimeout(t *testing.T) {
 	go host.loop()
 
 	sendFrom(t, requester, connectMessage("requester"))
-	expectReject(t, requester, "tempo esgotado aguardando o host")
+	expectReject(t, requester, "timed out waiting for host")
 }
 
 func TestLoopDiscardsAnswerWithoutPendingRequest(t *testing.T) {
@@ -282,13 +282,13 @@ func TestLoopDiscardsAnswerWithoutPendingRequest(t *testing.T) {
 	go host.loop()
 
 	select {
-	case lines <- stdinLine{text: "s\n", readAt: time.Now()}:
+	case lines <- stdinLine{text: "y\n", readAt: time.Now()}:
 	case <-time.After(testTimeout):
 		t.Fatal("Expected loop to read the early answer")
 	}
 
 	sendFrom(t, requester, connectMessage("requester"))
-	expectReject(t, requester, "tempo esgotado aguardando o host")
+	expectReject(t, requester, "timed out waiting for host")
 }
 
 func TestAnswerReadBeforePromptIgnored(t *testing.T) {
@@ -299,7 +299,7 @@ func TestAnswerReadBeforePromptIgnored(t *testing.T) {
 	if err := host.handle(connectMessage("requester")); err != nil {
 		t.Fatalf("Expected connect pending, got: %v", err)
 	}
-	early := stdinLine{text: "s\n", readAt: host.promptedAt.Add(-time.Millisecond)}
+	early := stdinLine{text: "y\n", readAt: host.promptedAt.Add(-time.Millisecond)}
 	if err := host.onAnswer(early); err != nil {
 		t.Fatalf("Expected early answer ignored, got: %v", err)
 	}
@@ -317,7 +317,7 @@ func TestAnswerWithinGraceIgnored(t *testing.T) {
 	if err := host.handle(connectMessage("requester")); err != nil {
 		t.Fatalf("Expected connect pending, got: %v", err)
 	}
-	for _, text := range []string{"s\n", "n\n"} {
+	for _, text := range []string{"y\n", "n\n"} {
 		fast := stdinLine{text: text, readAt: host.promptedAt.Add(host.answerGrace - time.Millisecond)}
 		if err := host.onAnswer(fast); err != nil {
 			t.Fatalf("Expected fast answer %q ignored, got: %v", text, err)
@@ -327,7 +327,7 @@ func TestAnswerWithinGraceIgnored(t *testing.T) {
 		}
 	}
 
-	if err := host.onAnswer(answerAfterGrace(host, "s\n")); err != nil {
+	if err := host.onAnswer(answerAfterGrace(host, "y\n")); err != nil {
 		t.Fatalf("Expected accept after grace, got: %v", err)
 	}
 	if offer := nextMessage(t, requester); offer.Type != signaling.TypeOffer {
@@ -347,12 +347,12 @@ func TestLateAnswerDoesNotAcceptNextRequester(t *testing.T) {
 	if err := host.onConfirmTimeout(); err != nil {
 		t.Fatalf("Expected timeout refuse, got: %v", err)
 	}
-	expectReject(t, first, "tempo esgotado aguardando o host")
+	expectReject(t, first, "timed out waiting for host")
 
 	if err := host.handle(connectMessage("second")); err != nil {
 		t.Fatalf("Expected second connect pending, got: %v", err)
 	}
-	meantForFirst := stdinLine{text: "s\n", readAt: host.promptedAt.Add(200 * time.Millisecond)}
+	meantForFirst := stdinLine{text: "y\n", readAt: host.promptedAt.Add(200 * time.Millisecond)}
 	if err := host.onAnswer(meantForFirst); err != nil {
 		t.Fatalf("Expected late answer ignored, got: %v", err)
 	}

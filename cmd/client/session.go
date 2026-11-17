@@ -20,20 +20,20 @@ const (
 	hostConfirmTimeout = 60 * time.Second
 	hostAnswerGrace    = time.Second
 
-	hostBusyMessage       = "host ocupado"
-	refusedByHostMessage  = "recusado pelo host"
-	confirmTimeoutMessage = "tempo esgotado aguardando o host"
+	hostBusyMessage       = "host busy"
+	refusedByHostMessage  = "refused by host"
+	confirmTimeoutMessage = "timed out waiting for host"
 )
 
-// session liga a sinalização (transport) à conexão WebRTC (peer).
-// Suporta uma sessão P2P por vez.
+// session links signaling (transport) to the WebRTC connection (peer).
+// Supports one P2P session at a time.
 type session struct {
 	ctx    context.Context
 	conn   *transport.Conn
 	cfg    webrtc.Configuration
 	selfID string
 
-	// Definidos antes de qualquer callback do pion disparar.
+	// Set before any pion callback fires.
 	remoteID string
 	peer     *peer.Peer
 
@@ -71,18 +71,18 @@ func (s *session) register() error {
 	return s.send(signaling.TypeRegister, "", nil)
 }
 
-// join é chamado por quem conecta: prepara o peer e pede a sessão ao host.
+// join is called by the joiner: prepares the peer and asks the host for a session.
 func (s *session) join(hostID string) error {
 	if err := s.startPeer(hostID); err != nil {
 		return err
 	}
-	// Quem responde recebe o DataChannel criado pelo outro lado.
+	// The answerer receives the DataChannel created by the other side.
 	s.peer.OnDataChannel(setupChannel)
 
 	return s.send(signaling.TypeConnect, hostID, nil)
 }
 
-// loop processa mensagens do servidor até a sessão terminar.
+// loop handles server messages until the session ends.
 func (s *session) loop() error {
 	msgs := s.conn.Messages()
 	lines := s.lines
@@ -102,13 +102,13 @@ func (s *session) loop() error {
 
 		case msg, ok := <-msgs:
 			if !ok {
-				// Sem servidor, a conexão P2P já aberta continua funcionando.
+				// Without the server, an already open P2P connection keeps working.
 				if s.connected.Load() {
-					fmt.Println("Servidor de sinalização desconectado; chat P2P continua.")
+					fmt.Println("Signaling server disconnected; P2P chat continues.")
 					msgs = nil
 					continue
 				}
-				return fmt.Errorf("servidor de sinalização desconectado: %w", s.conn.Err())
+				return fmt.Errorf("signaling server disconnected: %w", s.conn.Err())
 			}
 			if err := s.handle(msg); err != nil {
 				return err
@@ -176,29 +176,29 @@ func (s *session) handle(msg signaling.Message) error {
 		}
 		var e signaling.ErrorPayload
 		_ = msg.Decode(&e)
-		return errors.New("conexão recusada: " + sanitize(e.Message))
+		return errors.New("connection refused: " + sanitize(e.Message))
 
 	case signaling.TypeError:
-		// Erros só são aceitos quando vêm do servidor.
+		// Errors are only accepted from the server.
 		if msg.From != "" {
 			return nil
 		}
 		var e signaling.ErrorPayload
 		_ = msg.Decode(&e)
-		// Antes da conexão P2P, erro de sinalização encerra a sessão.
+		// Before the P2P connection, a signaling error ends the session.
 		if !s.connected.Load() {
-			return errors.New("servidor: " + sanitize(e.Message))
+			return errors.New("server: " + sanitize(e.Message))
 		}
-		fmt.Println("aviso do servidor:", sanitize(e.Message))
+		fmt.Println("server notice:", sanitize(e.Message))
 		return nil
 
 	default:
-		fmt.Printf("mensagem desconhecida: %q\n", msg.Type)
+		fmt.Printf("unknown message: %q\n", msg.Type)
 		return nil
 	}
 }
 
-// onConnect é chamado no host quando alguém pede uma sessão.
+// onConnect is called on the host when someone asks for a session.
 func (s *session) onConnect(from string) error {
 	if s.peer != nil || s.pendingID != "" {
 		return s.send(signaling.TypeReject, from, signaling.ErrorPayload{Message: hostBusyMessage})
@@ -207,8 +207,8 @@ func (s *session) onConnect(from string) error {
 	s.pendingID = from
 	s.confirmExpired = time.After(s.confirmTimeout)
 
-	fmt.Printf("Pedido de conexão de %q\n", sanitize(from))
-	fmt.Print("Aceitar? [s/N] ")
+	fmt.Printf("Connection request from %q\n", sanitize(from))
+	fmt.Print("Accept? [y/N] ")
 	s.promptedAt = time.Now()
 	return nil
 }
@@ -218,12 +218,12 @@ func (s *session) onAnswer(line stdinLine) error {
 		return nil
 	}
 	if line.readAt.Before(s.promptedAt.Add(s.answerGrace)) {
-		fmt.Print("Resposta ignorada: rápida demais. Aceitar? [s/N] ")
+		fmt.Print("Answer ignored: too fast. Accept? [y/N] ")
 		return nil
 	}
 	if !isAcceptAnswer(line.text) {
 		from := s.clearPending()
-		fmt.Printf("Pedido de %q recusado.\n", sanitize(from))
+		fmt.Printf("Request from %q refused.\n", sanitize(from))
 		return s.send(signaling.TypeReject, from, signaling.ErrorPayload{Message: refusedByHostMessage})
 	}
 	return s.acceptPending()
@@ -234,7 +234,7 @@ func (s *session) onConfirmTimeout() error {
 	if from == "" {
 		return nil
 	}
-	fmt.Printf("\nPedido de %q recusado: tempo esgotado.\n", sanitize(from))
+	fmt.Printf("\nRequest from %q refused: timed out.\n", sanitize(from))
 	return s.send(signaling.TypeReject, from, signaling.ErrorPayload{Message: confirmTimeoutMessage})
 }
 
@@ -247,7 +247,7 @@ func (s *session) clearPending() string {
 
 func isAcceptAnswer(line string) bool {
 	answer := strings.TrimSpace(line)
-	return answer == "s" || answer == "S"
+	return answer == "y" || answer == "Y"
 }
 
 func (s *session) acceptPending() error {
@@ -255,7 +255,7 @@ func (s *session) acceptPending() error {
 		return err
 	}
 
-	// Quem faz a offer cria o DataChannel.
+	// The offerer creates the DataChannel.
 	dc, err := s.peer.CreateDataChannel("chat")
 	if err != nil {
 		return err
@@ -278,22 +278,22 @@ func (s *session) startPeer(remoteID string) error {
 	s.remoteID = remoteID
 	s.peer = p
 
-	// Trickle ICE: cada candidato local vai para o outro lado assim que surge.
+	// Trickle ICE: each local candidate goes to the other side as soon as it appears.
 	p.OnICECandidate(func(c webrtc.ICECandidateInit) {
 		if err := s.send(signaling.TypeCandidate, s.remoteID, c); err != nil {
-			fmt.Println("erro ao enviar candidato:", err)
+			fmt.Println("failed to send candidate:", err)
 		}
 	})
 
-	// Handler para controlar e exibir mudanças no estado da conexão.
+	// Handler that tracks and prints connection state changes.
 	p.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		fmt.Printf("Peer connection state changed: %s\n", state.String())
 
 		switch state {
 		case webrtc.PeerConnectionStateConnected:
 			s.connected.Store(true)
-		// Muda o estado para falhar se ficar 30 segundos
-		// sem atividade ou algum outro tipo de falha.
+		// The state changes to failed after 30 seconds
+		// without activity or on any other failure.
 		case webrtc.PeerConnectionStateFailed:
 			s.finish(errors.New("peer connection failed"))
 		case webrtc.PeerConnectionStateClosed:
@@ -304,7 +304,7 @@ func (s *session) startPeer(remoteID string) error {
 	return nil
 }
 
-// fromRemote descarta mensagens de quem não é o par atual.
+// fromRemote drops messages from anyone other than the current peer.
 func (s *session) fromRemote(msg signaling.Message) bool {
 	return s.peer != nil && msg.From == s.remoteID
 }
