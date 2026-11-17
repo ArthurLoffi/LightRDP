@@ -2,7 +2,7 @@
 How to use the application and the features it offers.
 
 ## Pages
-- [Getting Started](getting_started.md): how to run the server, start a host, connect to it and end a session.
+- [Getting Started](getting_started.md): how to run the server, start a host, connect to it, accept a connection and end a session.
 - [Chat](chat/README.md): sending text messages during a session.
 
 ## How to document

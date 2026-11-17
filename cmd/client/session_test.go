@@ -237,6 +237,9 @@ func TestHandleConnectWhileBusy(t *testing.T) {
 	second := registerProbe(t, url, "second")
 
 	if err := host.handle(signaling.Message{Type: signaling.TypeConnect, From: "first", To: "host"}); err != nil {
+		t.Fatalf("Expected first connect pending, got: %v", err)
+	}
+	if err := host.onAnswer("s\n"); err != nil {
 		t.Fatalf("Expected first connect accepted, got: %v", err)
 	}
 	if offer := nextMessage(t, first); offer.Type != signaling.TypeOffer || offer.From != "host" {
@@ -320,6 +323,10 @@ func TestHostAndJoinConnect(t *testing.T) {
 	url := newTestHub(t)
 
 	host := helperCommand(t, "host", helperServerEnv+"="+url)
+	hostIn, err := host.StdinPipe()
+	if err != nil {
+		t.Fatalf("Expected stdin pipe, got: %v", err)
+	}
 	hostOut := startHelper(t, host)
 	waitForLine(t, hostOut, "ready")
 
@@ -327,6 +334,9 @@ func TestHostAndJoinConnect(t *testing.T) {
 	joinOut := startHelper(t, join)
 
 	waitForLine(t, hostOut, `Pedido de conexão de "join1"`)
+	if _, err := io.WriteString(hostIn, "s\n"); err != nil {
+		t.Fatalf("Expected confirmation written, got: %v", err)
+	}
 	waitForLine(t, hostOut, "Peer connection state changed: connected")
 	waitForLine(t, joinOut, "Peer connection state changed: connected")
 
@@ -352,6 +362,9 @@ func runSessionHelper(t *testing.T, selfID, hostID string) {
 
 	s := newSession(ctx, conn, webrtc.Configuration{}, selfID)
 	defer s.close()
+	if hostID == "" {
+		s.lines = stdinLines()
+	}
 
 	if err := s.register(); err != nil {
 		t.Fatalf("Expected register sent, got: %v", err)

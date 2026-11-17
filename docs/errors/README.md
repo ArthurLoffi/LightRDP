@@ -11,6 +11,8 @@ arthuroscarsoares@gmail.com
 - [ID already registered](id_already_registered.md)
 - [Host not found](peer_not_found.md)
 - [Host busy](host_busy.md)
+- [Refused by the host](refused_by_host.md)
+- [Host did not answer in time](confirmation_timeout.md)
 - [Signaling server disconnected](server_disconnected.md)
 - [Peer connection failed](peer_connection_failed.md)
 

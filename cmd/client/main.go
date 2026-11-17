@@ -67,12 +67,14 @@ func run(serverURL, mode, selfID, hostID string) error {
 	fmt.Printf("Conectado ao servidor como %q\n", selfID)
 
 	if mode == "host" {
+		s.lines = stdinLines()
 		fmt.Println("Aguardando conexões...")
 	} else {
 		if err := s.join(hostID); err != nil {
 			return err
 		}
 		fmt.Printf("Pedido enviado para %q\n", hostID)
+		fmt.Println("Aguardando confirmação do host...")
 	}
 
 	return s.loop()

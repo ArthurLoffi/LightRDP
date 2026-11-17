@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -14,7 +15,14 @@ import (
 	"LightRDP/internal/transport"
 )
 
-const sendTimeout = 5 * time.Second
+const (
+	sendTimeout        = 5 * time.Second
+	hostConfirmTimeout = 60 * time.Second
+
+	hostBusyMessage       = "host ocupado"
+	refusedByHostMessage  = "recusado pelo host"
+	confirmTimeoutMessage = "tempo esgotado aguardando o host"
+)
 
 // session liga a sinalização (transport) à conexão WebRTC (peer).
 // Suporta uma sessão P2P por vez.
@@ -30,6 +38,11 @@ type session struct {
 
 	connected atomic.Bool
 	done      chan error
+
+	lines          <-chan string
+	confirmTimeout time.Duration
+	pendingID      string
+	confirmExpired <-chan time.Time
 }
 
 func newSession(ctx context.Context, conn *transport.Conn, cfg webrtc.Configuration, selfID string) *session {
@@ -39,6 +52,8 @@ func newSession(ctx context.Context, conn *transport.Conn, cfg webrtc.Configurat
 		cfg:    cfg,
 		selfID: selfID,
 		done:   make(chan error, 1),
+
+		confirmTimeout: hostConfirmTimeout,
 	}
 }
 
@@ -66,8 +81,14 @@ func (s *session) join(hostID string) error {
 // loop processa mensagens do servidor até a sessão terminar.
 func (s *session) loop() error {
 	msgs := s.conn.Messages()
+	lines := s.lines
 
 	for {
+		var answers <-chan string
+		if s.peer == nil {
+			answers = lines
+		}
+
 		select {
 		case <-s.ctx.Done():
 			return nil
@@ -86,6 +107,20 @@ func (s *session) loop() error {
 				return fmt.Errorf("servidor de sinalização desconectado: %w", s.conn.Err())
 			}
 			if err := s.handle(msg); err != nil {
+				return err
+			}
+
+		case line, ok := <-answers:
+			if !ok {
+				lines = nil
+				continue
+			}
+			if err := s.onAnswer(line); err != nil {
+				return err
+			}
+
+		case <-s.confirmExpired:
+			if err := s.onConfirmTimeout(); err != nil {
 				return err
 			}
 		}
@@ -161,12 +196,53 @@ func (s *session) handle(msg signaling.Message) error {
 
 // onConnect é chamado no host quando alguém pede uma sessão.
 func (s *session) onConnect(from string) error {
-	if s.peer != nil {
-		return s.send(signaling.TypeReject, from, signaling.ErrorPayload{Message: "host ocupado"})
+	if s.peer != nil || s.pendingID != "" {
+		return s.send(signaling.TypeReject, from, signaling.ErrorPayload{Message: hostBusyMessage})
 	}
 
-	fmt.Printf("Pedido de conexão de %q\n", from)
-	if err := s.startPeer(from); err != nil {
+	s.pendingID = from
+	s.confirmExpired = time.After(s.confirmTimeout)
+
+	fmt.Printf("Pedido de conexão de %q\n", sanitize(from))
+	fmt.Print("Aceitar? [s/N] ")
+	return nil
+}
+
+func (s *session) onAnswer(line string) error {
+	if s.pendingID == "" {
+		return nil
+	}
+	if !isAcceptAnswer(line) {
+		from := s.clearPending()
+		fmt.Printf("Pedido de %q recusado.\n", sanitize(from))
+		return s.send(signaling.TypeReject, from, signaling.ErrorPayload{Message: refusedByHostMessage})
+	}
+	return s.acceptPending()
+}
+
+func (s *session) onConfirmTimeout() error {
+	from := s.clearPending()
+	if from == "" {
+		return nil
+	}
+	fmt.Printf("\nPedido de %q recusado: tempo esgotado.\n", sanitize(from))
+	return s.send(signaling.TypeReject, from, signaling.ErrorPayload{Message: confirmTimeoutMessage})
+}
+
+func (s *session) clearPending() string {
+	from := s.pendingID
+	s.pendingID = ""
+	s.confirmExpired = nil
+	return from
+}
+
+func isAcceptAnswer(line string) bool {
+	answer := strings.TrimSpace(line)
+	return answer == "s" || answer == "S"
+}
+
+func (s *session) acceptPending() error {
+	if err := s.startPeer(s.clearPending()); err != nil {
 		return err
 	}
 
