@@ -3,9 +3,9 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] - 2026-11-16
+## [Unreleased] - 2026-11-17
 ### Added
-- Host access approval: the host is asked `Aceitar? [s/N]` for each connection request, and nothing is negotiated before it accepts. Requests are refused on any other answer (`recusado pelo host`) or after 60 seconds without an answer (`tempo esgotado aguardando o host`). Requests that arrive while the host is deciding get `host ocupado`. Answers typed before the prompt, or less than 1 second after it, are ignored so a late answer cannot accept a different requester (spec 0004).
+- Host access approval: the host is asked `Accept? [y/N]` for each connection request, and nothing is negotiated before it accepts. Requests are refused on any other answer (`refused by host`) or after 60 seconds without an answer (`timed out waiting for host`). Requests that arrive while the host is deciding get `host busy`. Answers typed before the prompt, or less than 1 second after it, are ignored so a late answer cannot accept a different requester (spec 0004).
 - Signaling server (`cmd/server`) that registers clients by ID and relays offers, answers and ICE candidates over WebSocket.
 - Client (`cmd/client`) with `-mode host|join`, `-id`, `-peer` and `-server` flags.
 - Trickle ICE: candidates are sent as soon as they are found.
@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Tests for `internal/signaling`, `internal/config`, `internal/server`, `internal/transport`, `cmd/server` and `cmd/client`, and more tests for `internal/peer` (spec 0003).
 
 ### Changed
+- Every client message, server log line, flag description and error text is now in English, and the code comments were translated to English. Docs quote the new messages (spec 0005).
+- **Breaking:** the host accepts a connection only with `y` or `Y` (`Accept? [y/N]`); `s` now refuses it. The texts inside `reject` and `error` payloads are now English; the protocol is unchanged, but scripts or log filters that match the old Portuguese text must be updated (spec 0005).
 - `cmd/client`: the host no longer accepts connections automatically (spec 0004).
 - `cmd/client`: stdin is read by a single line reader shared by the host confirmation and the chat (spec 0004).
 - Project layout: `connection/` moved to `internal/peer`, `config/` moved to `internal/config`, client entry point moved to `cmd/client`.

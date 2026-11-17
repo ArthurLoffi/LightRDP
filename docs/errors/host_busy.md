@@ -1,5 +1,5 @@
 # Host busy
-**Message:** `erro: conexão recusada: host ocupado`
+**Message:** `error: connection refused: host busy`
 
 ## Description
 The host refused the connection because it is already in a session with someone else, or is already deciding on another connection request.

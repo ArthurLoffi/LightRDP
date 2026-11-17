@@ -15,8 +15,8 @@ import (
 )
 
 func main() {
-	addr := flag.String("addr", ":8080", "endereço de escuta (\":8080\" escuta em todas as interfaces)")
-	debug := flag.Bool("debug", false, "logs detalhados")
+	addr := flag.String("addr", ":8080", "listen address (\":8080\" listens on all interfaces)")
+	debug := flag.Bool("debug", false, "verbose logs")
 	flag.Parse()
 
 	log := newLogger(*debug)
@@ -26,15 +26,15 @@ func main() {
 	defer stop()
 
 	go func() {
-		log.Info("servidor de sinalização ouvindo", "addr", *addr, "path", "/ws")
+		log.Info("signaling server listening", "addr", *addr, "path", "/ws")
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("servidor parou", "err", err)
+			log.Error("server stopped", "err", err)
 			os.Exit(1)
 		}
 	}()
 
 	<-ctx.Done()
-	log.Info("encerrando")
+	log.Info("shutting down")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

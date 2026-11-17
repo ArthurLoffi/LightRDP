@@ -90,7 +90,7 @@ func TestOnConnectionStateChangeOnRemoteFailure(t *testing.T) {
 	default:
 	}
 
-	// O outro lado some: disconnected -> failed (~30s, timeout padrão do ICE).
+	// The other side goes away: disconnected -> failed (~30s, default ICE timeout).
 	remote.Close()
 
 	select {
@@ -139,7 +139,7 @@ func TestOnConnectionStateChangeOnLocalClose(t *testing.T) {
 	connectPeers(t, peer, remote)
 	waitForState(t, peer, webrtc.PeerConnectionStateConnected)
 
-	// A Pion não dispara OnConnectionStateChange quando o próprio peer chama Close().
+	// Pion does not fire OnConnectionStateChange when the peer itself calls Close().
 	peer.Close()
 
 	select {
@@ -396,7 +396,7 @@ func assertPending(t *testing.T, peer *Peer, want int) {
 	}
 }
 
-// Encaminha os estados failed/closed para um canal.
+// Forwards the failed/closed states to a channel.
 func watchFinish(peer *Peer) <-chan webrtc.PeerConnectionState {
 	finished := make(chan webrtc.PeerConnectionState, 1)
 	peer.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
@@ -407,8 +407,8 @@ func watchFinish(peer *Peer) <-chan webrtc.PeerConnectionState {
 	return finished
 }
 
-// Faz o papel do servidor de sinalização entre os dois peers.
-// Os candidatos podem chegar antes da descrição remota e ficam na fila do Peer.
+// Acts as the signaling server between the two peers.
+// Candidates may arrive before the remote description and are queued by the Peer.
 func connectPeers(t *testing.T, offerer, answerer *Peer) {
 	t.Helper()
 
@@ -438,8 +438,8 @@ func connectPeers(t *testing.T, offerer, answerer *Peer) {
 	}
 }
 
-// Espera o estado consultando em loop: registrar outro OnConnectionStateChange
-// substituiria o handler já registrado.
+// Waits for the state by polling: registering another OnConnectionStateChange
+// would replace the handler already registered.
 func waitForState(t *testing.T, peer *Peer, want webrtc.PeerConnectionState) {
 	t.Helper()
 

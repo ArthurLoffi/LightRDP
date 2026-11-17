@@ -36,7 +36,7 @@ In a help desk session the helper often needs to send commands, links or error m
 
 ## User experience
 - New flag on `cmd/client`: `-clipboard=true|false` (default `true`).
-- When text is received, print a short notice, for example `Área de transferência atualizada (42 caracteres)`. Never print the clipboard content.
+- When text is received, print a short notice, for example `Clipboard updated (42 characters)`. Never print the clipboard content.
 
 ## Technical design
 - New package `internal/clipboard`: watch the local clipboard and write to it, behind a small interface so it can be faked in tests.
@@ -46,7 +46,7 @@ In a help desk session the helper often needs to send commands, links or error m
 ## Errors
 | Message | Cause | Solution |
 |---|---|---|
-| `área de transferência indisponível: ...` | No clipboard access (for example, no display on Linux). | Run in a desktop session, or use `-clipboard=false`. |
+| `clipboard unavailable: ...` | No clipboard access (for example, no display on Linux). | Run in a desktop session, or use `-clipboard=false`. |
 
 ## Breaking changes
 None.

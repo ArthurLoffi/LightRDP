@@ -13,7 +13,7 @@ import (
 	"github.com/pion/webrtc/v5"
 )
 
-// Único leitor do stdin no programa.
+// The only stdin reader in the program.
 var stdinLines = sync.OnceValue(func() <-chan stdinLine {
 	return readLines(os.Stdin)
 })
@@ -39,16 +39,16 @@ func readLines(r io.Reader) <-chan stdinLine {
 	return lines
 }
 
-// Configura os handlers do DataChannel: o que for digitado é enviado,
-// o que chegar é impresso.
+// Sets up the DataChannel handlers: typed text is sent,
+// received text is printed.
 func setupChannel(dc *webrtc.DataChannel) {
 	dc.OnOpen(func() {
-		fmt.Printf("\n DataChannel '%s' aberto! Digite mensagens: \n", sanitize(dc.Label()))
+		fmt.Printf("\n DataChannel '%s' open! Type messages: \n", sanitize(dc.Label()))
 		go func() {
 			for line := range stdinLines() {
 				if line := strings.TrimSpace(line.text); line != "" {
 					if err := dc.SendText(line); err != nil {
-						fmt.Println("erro ao enviar:", err)
+						fmt.Println("failed to send:", err)
 					}
 				}
 			}
@@ -59,8 +59,8 @@ func setupChannel(dc *webrtc.DataChannel) {
 	})
 }
 
-// sanitize remove caracteres de controle (sequências de escape ANSI, \r...)
-// e de direção bidirecional, para que o outro lado não manipule o terminal.
+// sanitize removes control characters (ANSI escape sequences, \r...)
+// and bidirectional characters, so the other side cannot manipulate the terminal.
 func sanitize(s string) string {
 	return strings.Map(func(r rune) rune {
 		switch {

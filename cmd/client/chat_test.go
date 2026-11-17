@@ -27,7 +27,7 @@ func TestSanitize(t *testing.T) {
 	cases := []struct {
 		name, in, want string
 	}{
-		{"plain text", "olá, mundo", "olá, mundo"},
+		{"plain text", "héllo, wörld", "héllo, wörld"},
 		{"tab", "a\tb", "a\tb"},
 		{"carriage return", "a\rb", "ab"},
 		{"newline", "a\nb", "ab"},
@@ -58,7 +58,7 @@ func TestSetupChannel(t *testing.T) {
 	stdout := startHelper(t, cmd)
 	stderr := cmd.Stderr.(*bytes.Buffer)
 
-	waitForLine(t, stdout, "DataChannel 'chat' aberto! Digite mensagens:")
+	waitForLine(t, stdout, "DataChannel 'chat' open! Type messages:")
 
 	if _, err := io.WriteString(stdinWriter, "  hello  \n\n   \nworld\n"); err != nil {
 		t.Fatalf("Expected stdin written, got: %v", err)
