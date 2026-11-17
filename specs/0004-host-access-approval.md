@@ -5,7 +5,7 @@
 | Status | In review |
 | Author | ArthurLoffi |
 | Created | 2026-11-16 |
-| Pull request | |
+| Pull request | https://github.com/ArthurLoffi/LightRDP/pull/8 |
 
 ## Goal
 Make the host explicitly confirm each connection request before any WebRTC negotiation or data exchange starts.
