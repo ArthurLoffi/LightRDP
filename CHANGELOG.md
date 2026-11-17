@@ -5,7 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased] - 2026-11-16
 ### Added
-- Host access approval: the host is asked `Aceitar? [s/N]` for each connection request, and nothing is negotiated before it accepts. Requests are refused on any other answer (`recusado pelo host`) or after 60 seconds without an answer (`tempo esgotado aguardando o host`). Requests that arrive while the host is deciding get `host ocupado` (spec 0004).
+- Host access approval: the host is asked `Aceitar? [s/N]` for each connection request, and nothing is negotiated before it accepts. Requests are refused on any other answer (`recusado pelo host`) or after 60 seconds without an answer (`tempo esgotado aguardando o host`). Requests that arrive while the host is deciding get `host ocupado`. Answers typed before the prompt, or less than 1 second after it, are ignored so a late answer cannot accept a different requester (spec 0004).
 - Signaling server (`cmd/server`) that registers clients by ID and relays offers, answers and ICE candidates over WebSocket.
 - Client (`cmd/client`) with `-mode host|join`, `-id`, `-peer` and `-server` flags.
 - Trickle ICE: candidates are sent as soon as they are found.

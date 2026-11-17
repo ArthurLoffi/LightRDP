@@ -239,7 +239,7 @@ func TestHandleConnectWhileBusy(t *testing.T) {
 	if err := host.handle(signaling.Message{Type: signaling.TypeConnect, From: "first", To: "host"}); err != nil {
 		t.Fatalf("Expected first connect pending, got: %v", err)
 	}
-	if err := host.onAnswer("s\n"); err != nil {
+	if err := host.onAnswer(answerAfterGrace(host, "s\n")); err != nil {
 		t.Fatalf("Expected first connect accepted, got: %v", err)
 	}
 	if offer := nextMessage(t, first); offer.Type != signaling.TypeOffer || offer.From != "host" {
@@ -334,6 +334,7 @@ func TestHostAndJoinConnect(t *testing.T) {
 	joinOut := startHelper(t, join)
 
 	waitForLine(t, hostOut, `Pedido de conexão de "join1"`)
+	time.Sleep(hostAnswerGrace + 200*time.Millisecond)
 	if _, err := io.WriteString(hostIn, "s\n"); err != nil {
 		t.Fatalf("Expected confirmation written, got: %v", err)
 	}

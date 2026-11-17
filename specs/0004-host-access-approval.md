@@ -39,6 +39,7 @@ With this change, the person at the host decides who connects. The signaling ser
 7. Offers, answers and candidates from a requester that was not accepted are ignored.
 8. The requester ID shown in the prompt is passed through `sanitize`.
 9. After a refusal or a timeout, the host keeps waiting for new requests (see Open questions).
+10. An answer only counts for the prompt it answers: lines read before the prompt was printed are ignored, and lines read less than 1 second after it are ignored with `Resposta ignorada: rápida demais. Aceitar? [s/N] `. This stops a late answer meant for an earlier request, or text typed before the prompt, from accepting a new requester.
 
 ## User experience
 Host:
@@ -49,6 +50,7 @@ Aguardando conexões...
 
 Pedido de conexão de "FO3TFX". Aceitar? [s/N] s
 ```
+- Answer typed less than 1 second after the prompt: `Resposta ignorada: rápida demais. Aceitar? [s/N] `
 - After a refusal: `Pedido de "FO3TFX" recusado.`
 - After a timeout: `Pedido de "FO3TFX" recusado: tempo esgotado.`
 
@@ -94,6 +96,7 @@ None.
 - [x] A second request during a pending confirmation gets `host ocupado`.
 - [x] Messages from a requester that was not accepted are ignored.
 - [x] After a refusal or timeout, the host accepts a new request.
+- [x] Answers read before the prompt, or less than 1 second after it, are ignored.
 - [x] `CHANGELOG.md`, `README.md`, `docs/app/getting_started.md` (remove the "No access password yet" warning, describe the confirmation) and `docs/errors/` (two new pages, linked in `docs/errors/README.md`) are updated.
 
 ## Test plan
@@ -104,7 +107,8 @@ None.
   - a late answer after timeout is ignored;
   - busy while pending;
   - offer/candidate from a non-accepted requester ignored;
-  - a new request after a refusal is prompted again.
+  - a new request after a refusal is prompted again;
+  - answers read before the prompt or within 1 second after it are ignored, and a late answer meant for a timed-out request does not accept the next one.
   - Update `TestHostAndJoinConnect` to accept through the injected reader.
 - Manual tests: two machines on the same network: accept, refuse, no answer for 60 seconds, a third client connecting while the host prompt is open.
 

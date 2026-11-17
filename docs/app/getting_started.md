@@ -74,6 +74,8 @@ Aceitar? [s/N]
 ```
 Type `s` and press Enter to accept. Any other answer, or just Enter, refuses the request. Nothing is exchanged between the two computers before the host accepts.
 
+Read the ID before answering. Anything typed before the question appears, or in the first second after it, is ignored, and the host shows `Resposta ignorada: rápida demais. Aceitar? [s/N]`. Just answer again. This keeps a late answer meant for an earlier request from accepting someone else.
+
 If nobody answers within 60 seconds, the request is refused. After a refusal, the host keeps waiting for new requests.
 
 | What happens | Host shows | Client shows |

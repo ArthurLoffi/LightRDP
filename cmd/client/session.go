@@ -18,6 +18,7 @@ import (
 const (
 	sendTimeout        = 5 * time.Second
 	hostConfirmTimeout = 60 * time.Second
+	hostAnswerGrace    = time.Second
 
 	hostBusyMessage       = "host ocupado"
 	refusedByHostMessage  = "recusado pelo host"
@@ -39,9 +40,11 @@ type session struct {
 	connected atomic.Bool
 	done      chan error
 
-	lines          <-chan string
+	lines          <-chan stdinLine
 	confirmTimeout time.Duration
+	answerGrace    time.Duration
 	pendingID      string
+	promptedAt     time.Time
 	confirmExpired <-chan time.Time
 }
 
@@ -54,6 +57,7 @@ func newSession(ctx context.Context, conn *transport.Conn, cfg webrtc.Configurat
 		done:   make(chan error, 1),
 
 		confirmTimeout: hostConfirmTimeout,
+		answerGrace:    hostAnswerGrace,
 	}
 }
 
@@ -84,7 +88,7 @@ func (s *session) loop() error {
 	lines := s.lines
 
 	for {
-		var answers <-chan string
+		var answers <-chan stdinLine
 		if s.peer == nil {
 			answers = lines
 		}
@@ -205,14 +209,19 @@ func (s *session) onConnect(from string) error {
 
 	fmt.Printf("Pedido de conexão de %q\n", sanitize(from))
 	fmt.Print("Aceitar? [s/N] ")
+	s.promptedAt = time.Now()
 	return nil
 }
 
-func (s *session) onAnswer(line string) error {
-	if s.pendingID == "" {
+func (s *session) onAnswer(line stdinLine) error {
+	if s.pendingID == "" || line.readAt.Before(s.promptedAt) {
 		return nil
 	}
-	if !isAcceptAnswer(line) {
+	if line.readAt.Before(s.promptedAt.Add(s.answerGrace)) {
+		fmt.Print("Resposta ignorada: rápida demais. Aceitar? [s/N] ")
+		return nil
+	}
+	if !isAcceptAnswer(line.text) {
 		from := s.clearPending()
 		fmt.Printf("Pedido de %q recusado.\n", sanitize(from))
 		return s.send(signaling.TypeReject, from, signaling.ErrorPayload{Message: refusedByHostMessage})

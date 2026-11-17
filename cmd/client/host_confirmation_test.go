@@ -12,6 +12,10 @@ import (
 	"LightRDP/internal/signaling"
 )
 
+func answerAfterGrace(s *session, text string) stdinLine {
+	return stdinLine{text: text, readAt: s.promptedAt.Add(s.answerGrace)}
+}
+
 func connectMessage(from string) signaling.Message {
 	return signaling.Message{Type: signaling.TypeConnect, From: from, To: "host"}
 }
@@ -77,7 +81,7 @@ func TestConnectWaitsForConfirmation(t *testing.T) {
 		t.Fatalf("Expected pending 'requester', got: %q", host.pendingID)
 	}
 
-	if err := host.onAnswer("s\n"); err != nil {
+	if err := host.onAnswer(answerAfterGrace(host, "s\n")); err != nil {
 		t.Fatalf("Expected accept, got: %v", err)
 	}
 	if offer := nextMessage(t, requester); offer.Type != signaling.TypeOffer || offer.From != "host" {
@@ -98,7 +102,7 @@ func TestAcceptAnswers(t *testing.T) {
 			if err := host.handle(connectMessage("requester")); err != nil {
 				t.Fatalf("Expected connect pending, got: %v", err)
 			}
-			if err := host.onAnswer(answer); err != nil {
+			if err := host.onAnswer(answerAfterGrace(host, answer)); err != nil {
 				t.Fatalf("Expected accept, got: %v", err)
 			}
 			if offer := nextMessage(t, requester); offer.Type != signaling.TypeOffer {
@@ -118,7 +122,7 @@ func TestRefuseAnswers(t *testing.T) {
 			if err := host.handle(connectMessage("requester")); err != nil {
 				t.Fatalf("Expected connect pending, got: %v", err)
 			}
-			if err := host.onAnswer(answer); err != nil {
+			if err := host.onAnswer(answerAfterGrace(host, answer)); err != nil {
 				t.Fatalf("Expected refuse without error, got: %v", err)
 			}
 
@@ -161,7 +165,7 @@ func TestLateAnswerAfterTimeoutIgnored(t *testing.T) {
 	}
 	expectReject(t, requester, "tempo esgotado aguardando o host")
 
-	if err := host.onAnswer("s\n"); err != nil {
+	if err := host.onAnswer(answerAfterGrace(host, "s\n")); err != nil {
 		t.Fatalf("Expected late answer ignored, got: %v", err)
 	}
 	if host.peer != nil {
@@ -216,7 +220,7 @@ func TestNewRequestAfterRefusalIsPrompted(t *testing.T) {
 	if err := host.handle(connectMessage("first")); err != nil {
 		t.Fatalf("Expected first connect pending, got: %v", err)
 	}
-	if err := host.onAnswer("n\n"); err != nil {
+	if err := host.onAnswer(answerAfterGrace(host, "n\n")); err != nil {
 		t.Fatalf("Expected refuse, got: %v", err)
 	}
 	expectReject(t, first, "recusado pelo host")
@@ -227,7 +231,7 @@ func TestNewRequestAfterRefusalIsPrompted(t *testing.T) {
 	if host.pendingID != "second" {
 		t.Fatalf("Expected pending 'second', got: %q", host.pendingID)
 	}
-	if err := host.onAnswer("s\n"); err != nil {
+	if err := host.onAnswer(answerAfterGrace(host, "s\n")); err != nil {
 		t.Fatalf("Expected accept, got: %v", err)
 	}
 	if offer := nextMessage(t, second); offer.Type != signaling.TypeOffer {
@@ -258,7 +262,7 @@ func TestLoopRefusesOnConfirmTimeout(t *testing.T) {
 	url := newTestHub(t)
 	host := newTestSession(t, url, "host")
 	host.confirmTimeout = 50 * time.Millisecond
-	host.lines = make(chan string)
+	host.lines = make(chan stdinLine)
 	requester := registerProbe(t, url, "requester")
 
 	go host.loop()
@@ -271,14 +275,14 @@ func TestLoopDiscardsAnswerWithoutPendingRequest(t *testing.T) {
 	url := newTestHub(t)
 	host := newTestSession(t, url, "host")
 	host.confirmTimeout = 200 * time.Millisecond
-	lines := make(chan string)
+	lines := make(chan stdinLine)
 	host.lines = lines
 	requester := registerProbe(t, url, "requester")
 
 	go host.loop()
 
 	select {
-	case lines <- "s\n":
+	case lines <- stdinLine{text: "s\n", readAt: time.Now()}:
 	case <-time.After(testTimeout):
 		t.Fatal("Expected loop to read the early answer")
 	}
@@ -287,12 +291,86 @@ func TestLoopDiscardsAnswerWithoutPendingRequest(t *testing.T) {
 	expectReject(t, requester, "tempo esgotado aguardando o host")
 }
 
+func TestAnswerReadBeforePromptIgnored(t *testing.T) {
+	url := newTestHub(t)
+	host := newTestSession(t, url, "host")
+	registerProbe(t, url, "requester")
+
+	if err := host.handle(connectMessage("requester")); err != nil {
+		t.Fatalf("Expected connect pending, got: %v", err)
+	}
+	early := stdinLine{text: "s\n", readAt: host.promptedAt.Add(-time.Millisecond)}
+	if err := host.onAnswer(early); err != nil {
+		t.Fatalf("Expected early answer ignored, got: %v", err)
+	}
+
+	if host.peer != nil || host.pendingID != "requester" {
+		t.Fatalf("Expected request still pending, got: peer %v, pending %q", host.peer, host.pendingID)
+	}
+}
+
+func TestAnswerWithinGraceIgnored(t *testing.T) {
+	url := newTestHub(t)
+	host := newTestSession(t, url, "host")
+	requester := registerProbe(t, url, "requester")
+
+	if err := host.handle(connectMessage("requester")); err != nil {
+		t.Fatalf("Expected connect pending, got: %v", err)
+	}
+	for _, text := range []string{"s\n", "n\n"} {
+		fast := stdinLine{text: text, readAt: host.promptedAt.Add(host.answerGrace - time.Millisecond)}
+		if err := host.onAnswer(fast); err != nil {
+			t.Fatalf("Expected fast answer %q ignored, got: %v", text, err)
+		}
+		if host.peer != nil || host.pendingID != "requester" {
+			t.Fatalf("Expected request still pending after %q, got: peer %v, pending %q", text, host.peer, host.pendingID)
+		}
+	}
+
+	if err := host.onAnswer(answerAfterGrace(host, "s\n")); err != nil {
+		t.Fatalf("Expected accept after grace, got: %v", err)
+	}
+	if offer := nextMessage(t, requester); offer.Type != signaling.TypeOffer {
+		t.Fatalf("Expected offer after grace, got: %+v", offer)
+	}
+}
+
+func TestLateAnswerDoesNotAcceptNextRequester(t *testing.T) {
+	url := newTestHub(t)
+	host := newTestSession(t, url, "host")
+	first := registerProbe(t, url, "first")
+	registerProbe(t, url, "second")
+
+	if err := host.handle(connectMessage("first")); err != nil {
+		t.Fatalf("Expected first connect pending, got: %v", err)
+	}
+	if err := host.onConfirmTimeout(); err != nil {
+		t.Fatalf("Expected timeout refuse, got: %v", err)
+	}
+	expectReject(t, first, "tempo esgotado aguardando o host")
+
+	if err := host.handle(connectMessage("second")); err != nil {
+		t.Fatalf("Expected second connect pending, got: %v", err)
+	}
+	meantForFirst := stdinLine{text: "s\n", readAt: host.promptedAt.Add(200 * time.Millisecond)}
+	if err := host.onAnswer(meantForFirst); err != nil {
+		t.Fatalf("Expected late answer ignored, got: %v", err)
+	}
+
+	if host.peer != nil || host.pendingID != "second" {
+		t.Fatalf("Expected second still pending, got: peer %v, pending %q", host.peer, host.pendingID)
+	}
+}
+
 func TestReadLines(t *testing.T) {
 	lines := readLines(strings.NewReader("a\n\nb\npartial"))
 
 	var got []string
 	for line := range lines {
-		got = append(got, line)
+		if line.readAt.IsZero() {
+			t.Fatalf("Expected read time for %q, got: zero", line.text)
+		}
+		got = append(got, line.text)
 	}
 
 	want := []string{"a\n", "\n", "b\n"}
