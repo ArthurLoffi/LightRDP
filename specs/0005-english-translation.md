@@ -5,7 +5,7 @@
 | Status | In review |
 | Author | ArthurLoffi |
 | Created | 2026-11-17 |
-| Pull request | |
+| Pull request | https://github.com/ArthurLoffi/LightRDP/pull/9 |
 
 ## Goal
 Make every user-facing text in LightRDP English: client output and prompts, server logs, error messages, documentation, tests and open specs. Translate the existing code comments to English.
