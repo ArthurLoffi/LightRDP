@@ -3,15 +3,41 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strings"
+	"sync"
+	"time"
 	"unicode"
 
 	"github.com/pion/webrtc/v5"
 )
 
 // Único leitor do stdin no programa.
-var stdin = bufio.NewReader(os.Stdin)
+var stdinLines = sync.OnceValue(func() <-chan stdinLine {
+	return readLines(os.Stdin)
+})
+
+type stdinLine struct {
+	text   string
+	readAt time.Time
+}
+
+func readLines(r io.Reader) <-chan stdinLine {
+	lines := make(chan stdinLine)
+	go func() {
+		defer close(lines)
+		reader := bufio.NewReader(r)
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				return
+			}
+			lines <- stdinLine{text: line, readAt: time.Now()}
+		}
+	}()
+	return lines
+}
 
 // Configura os handlers do DataChannel: o que for digitado é enviado,
 // o que chegar é impresso.
@@ -19,12 +45,8 @@ func setupChannel(dc *webrtc.DataChannel) {
 	dc.OnOpen(func() {
 		fmt.Printf("\n DataChannel '%s' aberto! Digite mensagens: \n", sanitize(dc.Label()))
 		go func() {
-			for {
-				line, err := stdin.ReadString('\n')
-				if err != nil {
-					return
-				}
-				if line = strings.TrimSpace(line); line != "" {
+			for line := range stdinLines() {
+				if line := strings.TrimSpace(line.text); line != "" {
 					if err := dc.SendText(line); err != nil {
 						fmt.Println("erro ao enviar:", err)
 					}

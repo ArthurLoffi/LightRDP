@@ -13,7 +13,7 @@ A session needs three parts:
 ### Not available yet
 - Seeing and controlling the other computer's screen.
 - Sharing resources as the host.
-- Protecting the host with an access password.
+- Protecting the host with an access password. For now, the host confirms each connection by hand.
 - Sharing copied text between the computers.
 - Session history.
 
@@ -63,8 +63,26 @@ You will see:
 ```
 Conectado ao servidor como "<YOUR_ID>"
 Pedido enviado para "HOST"
+Aguardando confirmação do host...
 ```
-On the host, `Pedido de conexão de "<YOUR_ID>"` appears.
+
+## 4. Accept the connection on the host
+On the host, this appears:
+```
+Pedido de conexão de "<YOUR_ID>"
+Aceitar? [s/N]
+```
+Type `s` and press Enter to accept. Any other answer, or just Enter, refuses the request. Nothing is exchanged between the two computers before the host accepts.
+
+Read the ID before answering. Anything typed before the question appears, or in the first second after it, is ignored, and the host shows `Resposta ignorada: rápida demais. Aceitar? [s/N]`. Just answer again. This keeps a late answer meant for an earlier request from accepting someone else.
+
+If nobody answers within 60 seconds, the request is refused. After a refusal, the host keeps waiting for new requests.
+
+| What happens | Host shows | Client shows |
+|---|---|---|
+| Host answers `s` | The connection starts | The connection starts |
+| Host answers anything else | `Pedido de "<YOUR_ID>" recusado.` | `erro: conexão recusada: recusado pelo host` |
+| No answer in 60 seconds | `Pedido de "<YOUR_ID>" recusado: tempo esgotado.` | `erro: conexão recusada: tempo esgotado aguardando o host` |
 
 When the connection is ready, both computers show:
 ```
@@ -100,8 +118,8 @@ After a session ends, the host stops. To accept a new connection, start the host
 Press `Ctrl+C` in the server terminal to stop the server.
 
 ## Things to know
-- **One session at a time.** While the host is in a session, other computers that try to connect get `erro: conexão recusada: host ocupado`. See [Host busy](../errors/host_busy.md).
-- **No access password yet.** Anyone on your network who knows the host ID can connect to it. Only run the host on networks you trust, and close it when you are done.
+- **One session at a time.** While the host is in a session, or is deciding on a request, other computers that try to connect get `erro: conexão recusada: host ocupado`. See [Host busy](../errors/host_busy.md).
+- **Only accept who you expect.** Anyone on your network who knows the host ID can send a request. Only answer `s` when you know who is connecting. Only run the host on networks you trust, and close it when you are done.
 - **The server can go away.** Once the two computers are connected, the chat keeps working even if the server stops. The client shows `Servidor de sinalização desconectado; chat P2P continua.`.
 - **Each ID can be used once.** Two computers cannot use the same ID at the same time. See [ID already registered](../errors/id_already_registered.md).
 
@@ -118,6 +136,8 @@ Press `Ctrl+C` in the server terminal to stop the server.
 | `erro: servidor: id já registrado` | [ID already registered](../errors/id_already_registered.md) |
 | `erro: servidor: destino não encontrado: <ID>` | [Host not found](../errors/peer_not_found.md) |
 | `erro: conexão recusada: host ocupado` | [Host busy](../errors/host_busy.md) |
+| `erro: conexão recusada: recusado pelo host` | [Refused by the host](../errors/refused_by_host.md) |
+| `erro: conexão recusada: tempo esgotado aguardando o host` | [Host did not answer in time](../errors/confirmation_timeout.md) |
 | `erro: servidor de sinalização desconectado: ...` | [Signaling server disconnected](../errors/server_disconnected.md) |
 | `erro: peer connection failed` | [Peer connection failed](../errors/peer_connection_failed.md) |
 
