@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Tests for `internal/signaling`, `internal/config`, `internal/server`, `internal/transport`, `cmd/server` and `cmd/client`, and more tests for `internal/peer` (spec 0003).
 
 ### Changed
+- **Breaking:** `cmd/server`: the `-addr` flag was replaced by `-bind` (default `127.0.0.1`) and `-port` (default `8080`). The server now only listens on the local machine by default; use `-bind <SERVER_IP>` or `-bind 0.0.0.0` to accept connections from the network.
 - Every client message, server log line, flag description and error text is now in English, and the code comments were translated to English. Docs quote the new messages (spec 0005).
 - **Breaking:** the host accepts a connection only with `y` or `Y` (`Accept? [y/N]`); `s` now refuses it. The texts inside `reject` and `error` payloads are now English; the protocol is unchanged, but scripts or log filters that match the old Portuguese text must be updated (spec 0005).
 - `cmd/client`: the host no longer accepts connections automatically (spec 0004).
