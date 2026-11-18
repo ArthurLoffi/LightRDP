@@ -24,23 +24,24 @@ A session needs three parts:
 - Check the network rules in [Network](#network).
 
 ## 1. Start the server
-On the computer that will run the server:
+On the computer that will run the server, replace `<SERVER_IP>` with its IP address on the network (for example `192.168.0.10`):
 ```
-go run ./cmd/server
+go run ./cmd/server -bind <SERVER_IP>
 ```
 You will see a line with `signaling server listening`. Leave this terminal open.
 
 | Option | What it does | Default |
 |---|---|---|
-| `-addr` | Address and port the server listens on. `:8080` means port 8080 on every network connection of the computer. | `:8080` |
+| `-bind` | Network address the server listens on. `127.0.0.1` only accepts connections from the same computer. Use the computer's network IP to accept connections from the network, or `0.0.0.0` for every network connection of the computer. | `127.0.0.1` |
+| `-port` | Port the server listens on. | `8080` |
 | `-debug` | Shows more detailed messages. | `false` |
 
 Example with another port:
 ```
-go run ./cmd/server -addr :9000
+go run ./cmd/server -bind <SERVER_IP> -port 9000
 ```
 
-You will need the server computer's IP address on the network (for example `192.168.0.10`). In the steps below, replace `<SERVER_IP>` with it.
+In the steps below, replace `<SERVER_IP>` with the same IP address.
 
 ## 2. Start the host
 On the computer that will be accessed:

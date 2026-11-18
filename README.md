@@ -10,10 +10,12 @@ A lightweight remote help desk tool, similar to RustDesk and AnyDesk.
 ### 1. Start the signaling server
 Run it on one machine of the network:
 ```
-go run ./cmd/server               # listens on :8080 (all network interfaces)
-go run ./cmd/server -addr :9000   # custom port
-go run ./cmd/server -debug        # verbose logs
+go run ./cmd/server                           # listens on 127.0.0.1:8080 (this machine only)
+go run ./cmd/server -bind <SERVER_IP>         # listens on the given network address, port 8080
+go run ./cmd/server -bind 0.0.0.0 -port 9000  # all network interfaces, custom port
+go run ./cmd/server -debug                    # verbose logs
 ```
+By default the server only accepts connections from the same machine. To let other machines connect, pass `-bind` with the server's network IP (or `0.0.0.0` for all interfaces).
 
 ### 2. Start the host (the machine that will be accessed)
 ```
