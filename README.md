@@ -8,28 +8,36 @@ A lightweight remote help desk tool, similar to RustDesk and AnyDesk.
 
 ## Usage
 ### 1. Start the signaling server
-Run it on one machine of the network:
+Run it on one machine of the network. To accept other machines, the server needs a certificate (TLS, `wss://`). Create a self-signed one with the server IP in it:
 ```
-go run ./cmd/server                           # listens on 127.0.0.1:8080 (this machine only)
-go run ./cmd/server -bind <SERVER_IP>         # listens on the given network address, port 8080
-go run ./cmd/server -bind 0.0.0.0 -port 9000  # all network interfaces, custom port
-go run ./cmd/server -debug                    # verbose logs
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 365 \
+  -keyout server.key -out server.crt -subj "/CN=LightRDP" \
+  -addext "subjectAltName=IP:<SERVER_IP>"
 ```
-By default the server only accepts connections from the same machine. To let other machines connect, pass `-bind` with the server's network IP (or `0.0.0.0` for all interfaces).
+Copy `server.crt` (public) to each client machine. `server.key` stays on the server.
+```
+go run ./cmd/server                                                  # 127.0.0.1:8080, this machine only, no TLS
+go run ./cmd/server -bind <SERVER_IP> -cert server.crt -key server.key  # network address, wss://
+go run ./cmd/server -bind 0.0.0.0 -port 9000 -cert server.crt -key server.key
+go run ./cmd/server -debug                                           # verbose logs
+```
+The server refuses to start on a non-loopback `-bind` without `-cert` and `-key`. See [Security](docs/app/security/README.md).
 
 ### 2. Start the host (the machine that will be accessed)
 ```
-go run ./cmd/client -mode host -id HOST -server ws://<SERVER_IP>:8080/ws
+go run ./cmd/client -mode host -id HOST -server wss://<SERVER_IP>:8080/ws -ca server.crt
 ```
 If `-id` is omitted, a random ID is generated and printed.
 
 ### 3. Connect from another machine
 ```
-go run ./cmd/client -mode join -peer HOST -server ws://<SERVER_IP>:8080/ws
+go run ./cmd/client -mode join -peer HOST -server wss://<SERVER_IP>:8080/ws -ca server.crt
 ```
-The host is asked `Accept? [y/N]`. Type `y` to accept; any other answer, or no answer within 60 seconds, refuses the request.
+`-ca` trusts the server's self-signed certificate. `ws://` is only accepted for `localhost`, `127.0.0.1` and `::1`.
 
-Once the connection is established, type messages in either terminal to send them.
+Once the machines connect, both show the same `Safety code: NNN NNN`. Compare it by phone or in person. The host is asked `Accept "<ID>" with this code? [y/N]` and the client `Same code on the host? [y/N]`. Type `y` only if the codes match; any other answer, or no answer from the host within 60 seconds of the request, closes the connection.
+
+Once both confirm, the chat opens: type messages in either terminal to send them.
 
 ### Network
 - The server machine must accept TCP connections on the server port (default `8080`).
@@ -37,7 +45,8 @@ Once the connection is established, type messages in either terminal to send the
 - Only open the ports you need, and only to your local network.
 
 ## How it works
-- **Signaling server** (`cmd/server`): registers clients by ID and relays connection requests, SDP offers/answers and ICE candidates. It never sees the peer-to-peer traffic.
+- **Signaling server** (`cmd/server`): registers clients by ID and relays connection requests, SDP offers/answers and ICE candidates over TLS (`wss://`). It never sees the peer-to-peer traffic.
+- **Safety code**: derived from the DTLS certificates used in the peer-to-peer handshake, so a network attacker or a compromised server that swaps the SDP fingerprint produces different codes on the two machines.
 - **Client** (`cmd/client`): connects to the server, negotiates a WebRTC connection with the other peer, and chats over a DataChannel.
 
 ## Roadmap

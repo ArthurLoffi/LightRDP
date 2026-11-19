@@ -71,7 +71,7 @@ func dialTestServer(t *testing.T, url string) *Conn {
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
 
-	conn, err := Dial(ctx, url)
+	conn, err := Dial(ctx, url, nil)
 	if err != nil {
 		t.Fatalf("Expected connection, got: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestDialUnreachable(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
 
-	conn, err := Dial(ctx, url)
+	conn, err := Dial(ctx, url, nil)
 	if err == nil {
 		conn.Close()
 		t.Fatal("Expected dial error, got: nil")

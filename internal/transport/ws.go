@@ -3,7 +3,12 @@ package transport
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"net"
+	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 
 	"github.com/coder/websocket"
@@ -23,11 +28,19 @@ type Conn struct {
 	err error
 }
 
-// Dial connects to the server (e.g. ws://192.168.0.10:8080/ws) and starts reading.
-func Dial(ctx context.Context, url string) (*Conn, error) {
-	ws, _, err := websocket.Dial(ctx, url, nil)
+// Dial connects to the server (e.g. wss://192.168.0.10:8080/ws) and starts reading.
+func Dial(ctx context.Context, serverURL string, tlsConfig *tls.Config) (*Conn, error) {
+	if err := checkSecureURL(serverURL); err != nil {
+		return nil, err
+	}
+
+	httpTransport := http.DefaultTransport.(*http.Transport).Clone()
+	httpTransport.TLSClientConfig = tlsConfig
+	opts := &websocket.DialOptions{HTTPClient: &http.Client{Transport: httpTransport}}
+
+	ws, _, err := websocket.Dial(ctx, serverURL, opts)
 	if err != nil {
-		return nil, fmt.Errorf("transport: dial %s: %w", url, err)
+		return nil, fmt.Errorf("transport: dial %s: %w", serverURL, err)
 	}
 	ws.SetReadLimit(maxMsgSize)
 
@@ -85,4 +98,24 @@ func (c *Conn) readLoop(ctx context.Context) {
 			return
 		}
 	}
+}
+
+func checkSecureURL(serverURL string) error {
+	u, err := url.Parse(serverURL)
+	if err != nil {
+		return fmt.Errorf("transport: dial %s: %w", serverURL, err)
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if (scheme == "ws" || scheme == "http") && !IsLoopbackHost(u.Hostname()) {
+		return fmt.Errorf("transport: insecure server URL %s: use wss://", serverURL)
+	}
+	return nil
+}
+
+func IsLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }

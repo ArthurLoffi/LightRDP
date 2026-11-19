@@ -14,4 +14,6 @@ The two machines found each other through the server, but could not open a direc
 - Make sure both machines are on the same network.
 - Start both clients again.
 
-_Documented on: 2026-11-13_
+On the host, if the connection fails before the chat opens, the host does not show this error: it shows `Peer connection state changed: failed`, then `Waiting for connections...`, and keeps waiting for new requests.
+
+_Documented on: 2026-11-13 (updated 2026-11-18)_

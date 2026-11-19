@@ -3,7 +3,10 @@
 package peer
 
 import (
+	"crypto/sha256"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/pion/webrtc/v5"
@@ -131,4 +134,41 @@ func (p *Peer) setRemote(desc webrtc.SessionDescription) error {
 	p.pending = nil
 
 	return nil
+}
+
+type DTLSFingerprints struct {
+	Local  string
+	Remote string
+}
+
+func (p *Peer) DTLSFingerprints() (DTLSFingerprints, error) {
+	dtls := p.pc.SCTP().Transport()
+
+	remoteCertificate := dtls.GetRemoteCertificate()
+	if len(remoteCertificate) == 0 {
+		return DTLSFingerprints{}, errors.New("peer: remote DTLS certificate not available")
+	}
+
+	params, err := dtls.GetLocalParameters()
+	if err != nil {
+		return DTLSFingerprints{}, fmt.Errorf("peer: local DTLS parameters: %w", err)
+	}
+	for _, fp := range params.Fingerprints {
+		if strings.EqualFold(fp.Algorithm, "sha-256") {
+			return DTLSFingerprints{
+				Local:  strings.ToLower(fp.Value),
+				Remote: sha256Fingerprint(remoteCertificate),
+			}, nil
+		}
+	}
+	return DTLSFingerprints{}, errors.New("peer: no sha-256 local DTLS fingerprint")
+}
+
+func sha256Fingerprint(der []byte) string {
+	sum := sha256.Sum256(der)
+	parts := make([]string, len(sum))
+	for i, b := range sum {
+		parts[i] = fmt.Sprintf("%02x", b)
+	}
+	return strings.Join(parts, ":")
 }
