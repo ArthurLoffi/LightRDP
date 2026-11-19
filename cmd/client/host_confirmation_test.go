@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -549,5 +550,63 @@ func sendFrom(t *testing.T, conn interface {
 	defer cancel()
 	if err := conn.Send(ctx, msg); err != nil {
 		t.Fatalf("Expected message sent, got: %v", err)
+	}
+}
+
+func TestHostInvalidRemoteMessageBeforeChatKeepsWaiting(t *testing.T) {
+	invalid := map[signaling.Type]string{
+		signaling.TypeOffer:     `"invalid"`,
+		signaling.TypeAnswer:    `{"type":"answer","sdp":"invalid"}`,
+		signaling.TypeCandidate: `"invalid"`,
+	}
+	for msgType, payload := range invalid {
+		t.Run(string(msgType), func(t *testing.T) {
+			url := newTestHub(t)
+			host := newTestSession(t, url, "host")
+			requester := registerProbe(t, url, "requester")
+			next := registerProbe(t, url, "next")
+
+			if err := host.handle(connectMessage("requester")); err != nil {
+				t.Fatalf("Expected negotiation started, got: %v", err)
+			}
+			expectOffer(t, requester)
+
+			msg := signaling.Message{Type: msgType, From: "requester", To: "host", Payload: json.RawMessage(payload)}
+			if err := host.handle(msg); err != nil {
+				t.Fatalf("Expected host to keep running, got: %v", err)
+			}
+			if host.peer != nil {
+				t.Fatal("Expected attempt dropped, got: peer")
+			}
+
+			if err := host.handle(connectMessage("next")); err != nil {
+				t.Fatalf("Expected new request accepted for negotiation, got: %v", err)
+			}
+			expectOffer(t, next)
+		})
+	}
+}
+
+func TestHostInvalidRemoteMessageAfterChatOpenEnds(t *testing.T) {
+	host, _ := newHostWithRequest(t)
+	host.chat.open = true
+
+	msg := signaling.Message{Type: signaling.TypeAnswer, From: "requester", To: "host", Payload: json.RawMessage(`"invalid"`)}
+	if err := host.handle(msg); err == nil {
+		t.Fatal("Expected error after chat open, got: nil")
+	}
+}
+
+func TestJoinerInvalidRemoteMessageEnds(t *testing.T) {
+	url := newTestHub(t)
+	registerProbe(t, url, "host")
+	joiner := newTestSession(t, url, "joiner")
+	if err := joiner.join("host"); err != nil {
+		t.Fatalf("Expected join sent, got: %v", err)
+	}
+
+	msg := signaling.Message{Type: signaling.TypeOffer, From: "host", To: "joiner", Payload: json.RawMessage(`"invalid"`)}
+	if err := joiner.handle(msg); err == nil {
+		t.Fatal("Expected joiner to end on invalid offer, got: nil")
 	}
 }

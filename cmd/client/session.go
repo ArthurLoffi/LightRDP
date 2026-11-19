@@ -157,11 +157,11 @@ func (s *session) handle(msg signaling.Message) error {
 		}
 		var offer webrtc.SessionDescription
 		if err := msg.Decode(&offer); err != nil {
-			return err
+			return s.onInvalidRemoteMessage(err)
 		}
 		answer, err := s.peer.HandleOffer(offer)
 		if err != nil {
-			return err
+			return s.onInvalidRemoteMessage(err)
 		}
 		return s.send(signaling.TypeAnswer, s.remoteID, answer)
 
@@ -171,9 +171,9 @@ func (s *session) handle(msg signaling.Message) error {
 		}
 		var answer webrtc.SessionDescription
 		if err := msg.Decode(&answer); err != nil {
-			return err
+			return s.onInvalidRemoteMessage(err)
 		}
-		return s.peer.HandleAnswer(answer)
+		return s.onInvalidRemoteMessage(s.peer.HandleAnswer(answer))
 
 	case signaling.TypeCandidate:
 		if !s.fromRemote(msg) {
@@ -181,9 +181,9 @@ func (s *session) handle(msg signaling.Message) error {
 		}
 		var c webrtc.ICECandidateInit
 		if err := msg.Decode(&c); err != nil {
-			return err
+			return s.onInvalidRemoteMessage(err)
 		}
-		return s.peer.AddICECandidate(c)
+		return s.onInvalidRemoteMessage(s.peer.AddICECandidate(c))
 
 	case signaling.TypeReject:
 		if !s.fromRemote(msg) || s.chatOpen() {
@@ -274,6 +274,17 @@ func (s *session) endAttempt(err error) (bool, error) {
 	s.dropAttempt()
 	fmt.Println("Waiting for connections...")
 	return false, nil
+}
+
+func (s *session) onInvalidRemoteMessage(err error) error {
+	if err == nil || s.joining || s.chatOpen() {
+		return err
+	}
+	s.interruptPrompt()
+	from := s.dropAttempt()
+	fmt.Fprintf(os.Stderr, "Request from %q dropped: %s\n", sanitize(from), sanitize(err.Error()))
+	fmt.Println("Waiting for connections...")
+	return nil
 }
 
 func (s *session) askSafetyCode() error {
