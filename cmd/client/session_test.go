@@ -41,7 +41,7 @@ func dialHub(t *testing.T, url string) *transport.Conn {
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	defer cancel()
 
-	conn, err := transport.Dial(ctx, url)
+	conn, err := transport.Dial(ctx, url, nil)
 	if err != nil {
 		t.Fatalf("Expected connection to hub, got: %v", err)
 	}
@@ -188,13 +188,20 @@ func TestHandleServerErrorAfterConnect(t *testing.T) {
 	}
 }
 
-func TestHandleRejectBeforeConnect(t *testing.T) {
-	url := newTestHub(t)
-	s := newTestSession(t, url, "alice")
+func newJoiningSession(t *testing.T) *session {
+	t.Helper()
 
-	if err := s.startPeer("bob"); err != nil {
-		t.Fatalf("Expected peer started, got: %v", err)
+	url := newTestHub(t)
+	registerProbe(t, url, "bob")
+	s := newTestSession(t, url, "alice")
+	if err := s.join("bob"); err != nil {
+		t.Fatalf("Expected join sent, got: %v", err)
 	}
+	return s
+}
+
+func TestHandleRejectBeforeConnect(t *testing.T) {
+	s := newJoiningSession(t)
 
 	msg := signaling.Message{Type: signaling.TypeReject, From: "bob", To: "alice", Payload: errorPayload(t, "host busy")}
 	err := s.handle(msg)
@@ -206,18 +213,41 @@ func TestHandleRejectBeforeConnect(t *testing.T) {
 	}
 }
 
-func TestHandleRejectAfterConnect(t *testing.T) {
-	url := newTestHub(t)
-	s := newTestSession(t, url, "alice")
-
-	if err := s.startPeer("bob"); err != nil {
-		t.Fatalf("Expected peer started, got: %v", err)
-	}
+func TestHandleRejectWhileSafetyCodePending(t *testing.T) {
+	s := newJoiningSession(t)
 	s.connected.Store(true)
+	s.prompt(joinerQuestion)
+
+	msg := signaling.Message{Type: signaling.TypeReject, From: "bob", To: "alice", Payload: errorPayload(t, "refused by host")}
+	err := s.handle(msg)
+	if err == nil || err.Error() != "connection refused: refused by host" {
+		t.Fatalf("Expected 'connection refused: refused by host', got: %v", err)
+	}
+}
+
+func TestHandleRejectAfterLocalConfirmation(t *testing.T) {
+	s := newJoiningSession(t)
+	s.connected.Store(true)
+	s.prompt(joinerQuestion)
+	if err := s.onAnswer(answerAfterGrace(s, "y\n")); err != nil {
+		t.Fatalf("Expected accept, got: %v", err)
+	}
+
+	msg := signaling.Message{Type: signaling.TypeReject, From: "bob", To: "alice", Payload: errorPayload(t, "refused by host")}
+	err := s.handle(msg)
+	if err == nil || err.Error() != "connection refused: refused by host" {
+		t.Fatalf("Expected 'connection refused: refused by host', got: %v", err)
+	}
+}
+
+func TestHandleRejectAfterChatOpen(t *testing.T) {
+	s := newJoiningSession(t)
+	s.connected.Store(true)
+	s.chat.open = true
 
 	msg := signaling.Message{Type: signaling.TypeReject, From: "bob", To: "alice", Payload: errorPayload(t, "host busy")}
 	if err := s.handle(msg); err != nil {
-		t.Fatalf("Expected reject after connect ignored, got: %v", err)
+		t.Fatalf("Expected reject after chat open ignored, got: %v", err)
 	}
 }
 
@@ -237,20 +267,19 @@ func TestHandleConnectWhileBusy(t *testing.T) {
 	second := registerProbe(t, url, "second")
 
 	if err := host.handle(signaling.Message{Type: signaling.TypeConnect, From: "first", To: "host"}); err != nil {
-		t.Fatalf("Expected first connect pending, got: %v", err)
+		t.Fatalf("Expected first negotiation started, got: %v", err)
 	}
+	expectOffer(t, first)
+	host.prompt("Accept \"first\" with this code? [y/N] ")
 	if err := host.onAnswer(answerAfterGrace(host, "y\n")); err != nil {
-		t.Fatalf("Expected first connect accepted, got: %v", err)
-	}
-	if offer := nextMessage(t, first); offer.Type != signaling.TypeOffer || offer.From != "host" {
-		t.Fatalf("Expected offer from host, got: %+v", offer)
+		t.Fatalf("Expected first confirmed, got: %v", err)
 	}
 
 	if err := host.handle(signaling.Message{Type: signaling.TypeConnect, From: "second", To: "host"}); err != nil {
 		t.Fatalf("Expected second connect rejected without error, got: %v", err)
 	}
 
-	reject := nextMessage(t, second)
+	reject := nextMessageOtherThan(t, second, signaling.TypeCandidate)
 	if reject.Type != signaling.TypeReject || reject.From != "host" {
 		t.Fatalf("Expected reject from host, got: %+v", reject)
 	}
@@ -319,35 +348,159 @@ func TestLoopReturnsWhenServerDisconnects(t *testing.T) {
 	}
 }
 
-func TestHostAndJoinConnect(t *testing.T) {
-	url := newTestHub(t)
+type sessionHelper struct {
+	cmd *exec.Cmd
+	in  io.Writer
+	out <-chan string
+}
 
-	host := helperCommand(t, "host", helperServerEnv+"="+url)
-	hostIn, err := host.StdinPipe()
+func startSessionHelper(t *testing.T, url, mode, id string) *sessionHelper {
+	t.Helper()
+
+	cmd := helperCommand(t, mode, helperServerEnv+"="+url, helperIDEnv+"="+id)
+	in, err := cmd.StdinPipe()
 	if err != nil {
 		t.Fatalf("Expected stdin pipe, got: %v", err)
 	}
-	hostOut := startHelper(t, host)
-	waitForLine(t, hostOut, "ready")
+	out := startHelper(t, cmd)
+	waitForLine(t, out, "ready")
+	return &sessionHelper{cmd: cmd, in: in, out: out}
+}
 
-	join := helperCommand(t, "join", helperServerEnv+"="+url)
-	joinOut := startHelper(t, join)
+func (h *sessionHelper) write(t *testing.T, text string) {
+	t.Helper()
 
-	waitForLine(t, hostOut, `Connection request from "join1"`)
-	time.Sleep(hostAnswerGrace + 200*time.Millisecond)
-	if _, err := io.WriteString(hostIn, "y\n"); err != nil {
-		t.Fatalf("Expected confirmation written, got: %v", err)
+	if _, err := io.WriteString(h.in, text); err != nil {
+		t.Fatalf("Expected %q written, got: %v", text, err)
 	}
-	waitForLine(t, hostOut, "Peer connection state changed: connected")
-	waitForLine(t, joinOut, "Peer connection state changed: connected")
+}
 
-	stopHelper(host)
-	stopHelper(join)
+func (h *sessionHelper) answerAfterGrace(t *testing.T, text string) {
+	t.Helper()
 
-	for name, cmd := range map[string]*exec.Cmd{"host": host, "join": join} {
-		if out := cmd.Stderr.(*bytes.Buffer).String(); strings.Contains(out, "DATA RACE") {
-			t.Fatalf("Expected no data race in %s helper, got: %s", name, out)
+	time.Sleep(hostAnswerGrace + 200*time.Millisecond)
+	h.write(t, text)
+}
+
+func (h *sessionHelper) stop(t *testing.T) string {
+	t.Helper()
+
+	stopHelper(h.cmd)
+	stderr := h.cmd.Stderr.(*bytes.Buffer).String()
+	if strings.Contains(stderr, "DATA RACE") {
+		t.Fatalf("Expected no data race in helper, got: %s", stderr)
+	}
+	return stderr
+}
+
+func waitSafetyCode(t *testing.T, h *sessionHelper) string {
+	t.Helper()
+
+	waitForLine(t, h.out, "Peer connection state changed: connected")
+	line := waitForPrefix(t, h.out, "Safety code: ")
+	code := strings.TrimPrefix(line, "Safety code: ")
+	if !safetyCodeFormat.MatchString(code) {
+		t.Fatalf("Expected 'NNN NNN' code, got: %q", line)
+	}
+	return code
+}
+
+func startHostAndJoin(t *testing.T, joinID string) (url string, host, join *sessionHelper) {
+	t.Helper()
+
+	url = newTestHub(t)
+	host = startSessionHelper(t, url, "host", "")
+	join = startSessionHelper(t, url, "join", joinID)
+
+	waitForLine(t, host.out, `Connection request from "`+joinID+`"`)
+	hostCode := waitSafetyCode(t, host)
+	joinCode := waitSafetyCode(t, join)
+	if hostCode != joinCode {
+		t.Fatalf("Expected same safety code on both sides, got: host %q, join %q", hostCode, joinCode)
+	}
+	return url, host, join
+}
+
+func TestHostAndJoinConnect(t *testing.T) {
+	_, host, join := startHostAndJoin(t, "join1")
+
+	host.answerAfterGrace(t, "y\n")
+	host.write(t, "typed before both confirmed\n")
+	join.answerAfterGrace(t, "y\n")
+
+	waitForLine(t, host.out, `Accept "join1" with this code? [y/N]`)
+	waitForLine(t, host.out, "DataChannel 'chat' open! Type messages:")
+	waitForLine(t, join.out, "Same code on the host? [y/N]")
+	waitForLine(t, join.out, "DataChannel 'chat' open! Type messages:")
+
+	host.write(t, "hello\n")
+	seen := waitForLine(t, join.out, "< hello")
+	join.write(t, "back\n")
+	seen = append(seen, waitForLine(t, host.out, "< back")...)
+
+	for _, line := range seen {
+		if strings.HasPrefix(line, "< ") || strings.Contains(line, safetyCodeConfirmedMessage) {
+			t.Fatalf("Expected no other chat text, got: %q", line)
 		}
+	}
+
+	host.stop(t)
+	join.stop(t)
+}
+
+func TestHostRefusesSafetyCode(t *testing.T) {
+	url, host, join := startHostAndJoin(t, "join1")
+
+	host.answerAfterGrace(t, "n\n")
+	waitForLine(t, host.out, `Accept "join1" with this code? [y/N] Request from "join1" refused.`)
+	waitForLine(t, join.out, "Same code on the host? [y/N]")
+	waitForLine(t, join.out, "loop ended: connection refused: refused by host")
+
+	next := startSessionHelper(t, url, "join", "join2")
+	waitForLine(t, host.out, `Connection request from "join2"`)
+	waitSafetyCode(t, host)
+	waitSafetyCode(t, next)
+
+	host.stop(t)
+	join.stop(t)
+	next.stop(t)
+}
+
+func TestJoinerRefusesSafetyCode(t *testing.T) {
+	url, host, join := startHostAndJoin(t, "join1")
+
+	join.answerAfterGrace(t, "n\n")
+	waitForLine(t, join.out, "Same code on the host? [y/N] loop ended: safety code not confirmed")
+	waitForLine(t, host.out, `Accept "join1" with this code? [y/N]`)
+
+	next := startSessionHelper(t, url, "join", "join2")
+	waitForLine(t, host.out, `Connection request from "join2"`)
+
+	hostStderr := host.stop(t)
+	join.stop(t)
+	next.stop(t)
+
+	if !strings.Contains(hostStderr, "error: connection refused: safety code not confirmed\n") {
+		t.Fatalf("Expected host to show the refusal, got: %q", hostStderr)
+	}
+}
+
+func TestJoinerRefusesAfterHostConfirmed(t *testing.T) {
+	url, host, join := startHostAndJoin(t, "join1")
+
+	host.answerAfterGrace(t, "y\n")
+	join.answerAfterGrace(t, "n\n")
+	waitForLine(t, join.out, "Same code on the host? [y/N] loop ended: safety code not confirmed")
+
+	next := startSessionHelper(t, url, "join", "join2")
+	waitForLine(t, host.out, `Accept "join1" with this code? [y/N] Connection request from "join2"`)
+
+	hostStderr := host.stop(t)
+	join.stop(t)
+	next.stop(t)
+
+	if !strings.Contains(hostStderr, "error: connection refused: safety code not confirmed\n") {
+		t.Fatalf("Expected host to show the refusal, got: %q", hostStderr)
 	}
 }
 
@@ -355,7 +508,7 @@ func runSessionHelper(t *testing.T, selfID, hostID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), helperTimeout)
 	defer cancel()
 
-	conn, err := transport.Dial(ctx, os.Getenv(helperServerEnv))
+	conn, err := transport.Dial(ctx, os.Getenv(helperServerEnv), nil)
 	if err != nil {
 		t.Fatalf("Expected connection to hub, got: %v", err)
 	}
@@ -363,9 +516,7 @@ func runSessionHelper(t *testing.T, selfID, hostID string) {
 
 	s := newSession(ctx, conn, webrtc.Configuration{}, selfID)
 	defer s.close()
-	if hostID == "" {
-		s.lines = stdinLines()
-	}
+	s.lines = stdinLines()
 
 	if err := s.register(); err != nil {
 		t.Fatalf("Expected register sent, got: %v", err)
@@ -380,6 +531,6 @@ func runSessionHelper(t *testing.T, selfID, hostID string) {
 	}
 
 	if err := s.loop(); err != nil {
-		t.Fatalf("Expected session loop to end cleanly, got: %v", err)
+		fmt.Println("loop ended:", err)
 	}
 }

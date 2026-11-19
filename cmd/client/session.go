@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -20,10 +21,18 @@ const (
 	hostConfirmTimeout = 60 * time.Second
 	hostAnswerGrace    = time.Second
 
-	hostBusyMessage       = "host busy"
-	refusedByHostMessage  = "refused by host"
-	confirmTimeoutMessage = "timed out waiting for host"
+	hostBusyMessage             = "host busy"
+	refusedByHostMessage        = "refused by host"
+	confirmTimeoutMessage       = "timed out waiting for host"
+	safetyCodeNotConfirmedError = "safety code not confirmed"
+
+	joinerQuestion = "Same code on the host? [y/N] "
 )
+
+type peerState struct {
+	peer  *peer.Peer
+	state webrtc.PeerConnectionState
+}
 
 // session links signaling (transport) to the WebRTC connection (peer).
 // Supports one P2P session at a time.
@@ -33,18 +42,20 @@ type session struct {
 	cfg    webrtc.Configuration
 	selfID string
 
-	// Set before any pion callback fires.
+	joining  bool
 	remoteID string
 	peer     *peer.Peer
+	chat     *chat
 
 	connected atomic.Bool
-	done      chan error
+	states    chan peerState
 
 	lines          <-chan stdinLine
 	confirmTimeout time.Duration
 	answerGrace    time.Duration
-	pendingID      string
+	question       string
 	promptedAt     time.Time
+	confirmed      bool
 	confirmExpired <-chan time.Time
 }
 
@@ -54,7 +65,7 @@ func newSession(ctx context.Context, conn *transport.Conn, cfg webrtc.Configurat
 		conn:   conn,
 		cfg:    cfg,
 		selfID: selfID,
-		done:   make(chan error, 1),
+		states: make(chan peerState, 16),
 
 		confirmTimeout: hostConfirmTimeout,
 		answerGrace:    hostAnswerGrace,
@@ -73,11 +84,12 @@ func (s *session) register() error {
 
 // join is called by the joiner: prepares the peer and asks the host for a session.
 func (s *session) join(hostID string) error {
+	s.joining = true
 	if err := s.startPeer(hostID); err != nil {
 		return err
 	}
 	// The answerer receives the DataChannel created by the other side.
-	s.peer.OnDataChannel(setupChannel)
+	s.peer.OnDataChannel(s.chat.attach)
 
 	return s.send(signaling.TypeConnect, hostID, nil)
 }
@@ -89,7 +101,7 @@ func (s *session) loop() error {
 
 	for {
 		var answers <-chan stdinLine
-		if s.peer == nil {
+		if !s.confirmed {
 			answers = lines
 		}
 
@@ -97,8 +109,11 @@ func (s *session) loop() error {
 		case <-s.ctx.Done():
 			return nil
 
-		case err := <-s.done:
-			return err
+		case ev := <-s.states:
+			ended, err := s.onPeerState(ev)
+			if err != nil || ended {
+				return err
+			}
 
 		case msg, ok := <-msgs:
 			if !ok {
@@ -142,11 +157,11 @@ func (s *session) handle(msg signaling.Message) error {
 		}
 		var offer webrtc.SessionDescription
 		if err := msg.Decode(&offer); err != nil {
-			return err
+			return s.onInvalidRemoteMessage(err)
 		}
 		answer, err := s.peer.HandleOffer(offer)
 		if err != nil {
-			return err
+			return s.onInvalidRemoteMessage(err)
 		}
 		return s.send(signaling.TypeAnswer, s.remoteID, answer)
 
@@ -156,9 +171,9 @@ func (s *session) handle(msg signaling.Message) error {
 		}
 		var answer webrtc.SessionDescription
 		if err := msg.Decode(&answer); err != nil {
-			return err
+			return s.onInvalidRemoteMessage(err)
 		}
-		return s.peer.HandleAnswer(answer)
+		return s.onInvalidRemoteMessage(s.peer.HandleAnswer(answer))
 
 	case signaling.TypeCandidate:
 		if !s.fromRemote(msg) {
@@ -166,17 +181,24 @@ func (s *session) handle(msg signaling.Message) error {
 		}
 		var c webrtc.ICECandidateInit
 		if err := msg.Decode(&c); err != nil {
-			return err
+			return s.onInvalidRemoteMessage(err)
 		}
-		return s.peer.AddICECandidate(c)
+		return s.onInvalidRemoteMessage(s.peer.AddICECandidate(c))
 
 	case signaling.TypeReject:
-		if !s.fromRemote(msg) || s.connected.Load() {
+		if !s.fromRemote(msg) || s.chatOpen() {
 			return nil
 		}
 		var e signaling.ErrorPayload
 		_ = msg.Decode(&e)
-		return errors.New("connection refused: " + sanitize(e.Message))
+		refused := errors.New("connection refused: " + sanitize(e.Message))
+		s.interruptPrompt()
+		if s.joining {
+			return refused
+		}
+		s.dropAttempt()
+		fmt.Fprintln(os.Stderr, "error:", refused)
+		return nil
 
 	case signaling.TypeError:
 		// Errors are only accepted from the server.
@@ -200,58 +222,14 @@ func (s *session) handle(msg signaling.Message) error {
 
 // onConnect is called on the host when someone asks for a session.
 func (s *session) onConnect(from string) error {
-	if s.peer != nil || s.pendingID != "" {
+	if s.peer != nil {
 		return s.send(signaling.TypeReject, from, signaling.ErrorPayload{Message: hostBusyMessage})
 	}
 
-	s.pendingID = from
+	fmt.Printf("Connection request from %q\n", sanitize(from))
 	s.confirmExpired = time.After(s.confirmTimeout)
 
-	fmt.Printf("Connection request from %q\n", sanitize(from))
-	fmt.Print("Accept? [y/N] ")
-	s.promptedAt = time.Now()
-	return nil
-}
-
-func (s *session) onAnswer(line stdinLine) error {
-	if s.pendingID == "" || line.readAt.Before(s.promptedAt) {
-		return nil
-	}
-	if line.readAt.Before(s.promptedAt.Add(s.answerGrace)) {
-		fmt.Print("Answer ignored: too fast. Accept? [y/N] ")
-		return nil
-	}
-	if !isAcceptAnswer(line.text) {
-		from := s.clearPending()
-		fmt.Printf("Request from %q refused.\n", sanitize(from))
-		return s.send(signaling.TypeReject, from, signaling.ErrorPayload{Message: refusedByHostMessage})
-	}
-	return s.acceptPending()
-}
-
-func (s *session) onConfirmTimeout() error {
-	from := s.clearPending()
-	if from == "" {
-		return nil
-	}
-	fmt.Printf("\nRequest from %q refused: timed out.\n", sanitize(from))
-	return s.send(signaling.TypeReject, from, signaling.ErrorPayload{Message: confirmTimeoutMessage})
-}
-
-func (s *session) clearPending() string {
-	from := s.pendingID
-	s.pendingID = ""
-	s.confirmExpired = nil
-	return from
-}
-
-func isAcceptAnswer(line string) bool {
-	answer := strings.TrimSpace(line)
-	return answer == "y" || answer == "Y"
-}
-
-func (s *session) acceptPending() error {
-	if err := s.startPeer(s.clearPending()); err != nil {
+	if err := s.startPeer(from); err != nil {
 		return err
 	}
 
@@ -260,13 +238,156 @@ func (s *session) acceptPending() error {
 	if err != nil {
 		return err
 	}
-	setupChannel(dc)
+	s.chat.attach(dc)
 
 	offer, err := s.peer.CreateOffer()
 	if err != nil {
 		return err
 	}
 	return s.send(signaling.TypeOffer, s.remoteID, offer)
+}
+
+func (s *session) onPeerState(ev peerState) (bool, error) {
+	if ev.peer != s.peer {
+		return false, nil
+	}
+
+	switch ev.state {
+	case webrtc.PeerConnectionStateConnected:
+		s.connected.Store(true)
+		return false, s.askSafetyCode()
+	// The state changes to failed after 30 seconds
+	// without activity or on any other failure.
+	case webrtc.PeerConnectionStateFailed:
+		return s.endAttempt(errors.New("peer connection failed"))
+	case webrtc.PeerConnectionStateClosed:
+		return s.endAttempt(nil)
+	}
+	return false, nil
+}
+
+func (s *session) endAttempt(err error) (bool, error) {
+	s.interruptPrompt()
+	if s.joining || s.chatOpen() {
+		return true, err
+	}
+	s.dropAttempt()
+	fmt.Println("Waiting for connections...")
+	return false, nil
+}
+
+func (s *session) onInvalidRemoteMessage(err error) error {
+	if err == nil || s.joining || s.chatOpen() {
+		return err
+	}
+	s.interruptPrompt()
+	from := s.dropAttempt()
+	fmt.Fprintf(os.Stderr, "Request from %q dropped: %s\n", sanitize(from), sanitize(err.Error()))
+	fmt.Println("Waiting for connections...")
+	return nil
+}
+
+func (s *session) askSafetyCode() error {
+	if s.confirmed || s.question != "" {
+		return nil
+	}
+
+	fingerprints, err := s.peer.DTLSFingerprints()
+	if err != nil {
+		return err
+	}
+
+	question := joinerQuestion
+	code := safetyCode(fingerprints.Remote, fingerprints.Local)
+	if !s.joining {
+		question = fmt.Sprintf("Accept %q with this code? [y/N] ", sanitize(s.remoteID))
+		code = safetyCode(fingerprints.Local, fingerprints.Remote)
+	}
+
+	fmt.Printf("Safety code: %s\n", code)
+	s.prompt(question)
+	return nil
+}
+
+func (s *session) interruptPrompt() {
+	if s.question != "" {
+		fmt.Println()
+		s.question = ""
+	}
+}
+
+func (s *session) prompt(question string) {
+	s.question = question
+	fmt.Print(question)
+	s.promptedAt = time.Now()
+}
+
+func (s *session) onAnswer(line stdinLine) error {
+	if s.question == "" || line.readAt.Before(s.promptedAt) {
+		return nil
+	}
+	if line.readAt.Before(s.promptedAt.Add(s.answerGrace)) {
+		fmt.Print("Answer ignored: too fast. " + s.question)
+		return nil
+	}
+	if !isAcceptAnswer(line.text) {
+		return s.refuse()
+	}
+
+	s.question = ""
+	s.confirmed = true
+	s.confirmExpired = nil
+	s.chat.confirmLocal()
+	return nil
+}
+
+func (s *session) refuse() error {
+	if s.joining {
+		s.question = ""
+		if err := s.send(signaling.TypeReject, s.remoteID, signaling.ErrorPayload{Message: safetyCodeNotConfirmedError}); err != nil {
+			return err
+		}
+		return errors.New(safetyCodeNotConfirmedError)
+	}
+
+	from := s.dropAttempt()
+	fmt.Printf("Request from %q refused.\n", sanitize(from))
+	return s.send(signaling.TypeReject, from, signaling.ErrorPayload{Message: refusedByHostMessage})
+}
+
+func (s *session) onConfirmTimeout() error {
+	if s.peer == nil || s.confirmed {
+		s.confirmExpired = nil
+		return nil
+	}
+	s.interruptPrompt()
+	from := s.dropAttempt()
+	fmt.Printf("Request from %q refused: timed out.\n", sanitize(from))
+	return s.send(signaling.TypeReject, from, signaling.ErrorPayload{Message: confirmTimeoutMessage})
+}
+
+func (s *session) dropAttempt() string {
+	from := s.remoteID
+	if s.peer != nil {
+		_ = s.peer.Close()
+	}
+	s.peer = nil
+	s.chat = nil
+	s.remoteID = ""
+	s.question = ""
+	s.confirmed = false
+	s.confirmExpired = nil
+	s.connected.Store(false)
+	return from
+}
+
+func (s *session) chatOpen() bool {
+	return s.chat != nil && s.chat.isOpen()
+}
+
+func isAcceptAnswer(line string) bool {
+	answer := strings.TrimSpace(line)
+	return answer == "y" || answer == "Y"
 }
 
 func (s *session) startPeer(remoteID string) error {
@@ -277,10 +398,11 @@ func (s *session) startPeer(remoteID string) error {
 
 	s.remoteID = remoteID
 	s.peer = p
+	s.chat = &chat{}
 
 	// Trickle ICE: each local candidate goes to the other side as soon as it appears.
 	p.OnICECandidate(func(c webrtc.ICECandidateInit) {
-		if err := s.send(signaling.TypeCandidate, s.remoteID, c); err != nil {
+		if err := s.send(signaling.TypeCandidate, remoteID, c); err != nil {
 			fmt.Println("failed to send candidate:", err)
 		}
 	})
@@ -289,15 +411,9 @@ func (s *session) startPeer(remoteID string) error {
 	p.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		fmt.Printf("Peer connection state changed: %s\n", state.String())
 
-		switch state {
-		case webrtc.PeerConnectionStateConnected:
-			s.connected.Store(true)
-		// The state changes to failed after 30 seconds
-		// without activity or on any other failure.
-		case webrtc.PeerConnectionStateFailed:
-			s.finish(errors.New("peer connection failed"))
-		case webrtc.PeerConnectionStateClosed:
-			s.finish(nil)
+		select {
+		case s.states <- peerState{peer: p, state: state}:
+		case <-s.ctx.Done():
 		}
 	})
 
@@ -319,11 +435,4 @@ func (s *session) send(t signaling.Type, to string, payload any) error {
 	defer cancel()
 
 	return s.conn.Send(ctx, msg)
-}
-
-func (s *session) finish(err error) {
-	select {
-	case s.done <- err:
-	default:
-	}
 }

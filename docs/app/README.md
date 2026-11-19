@@ -2,8 +2,9 @@
 How to use the application and the features it offers.
 
 ## Pages
-- [Getting Started](getting_started.md): how to run the server, start a host, connect to it, accept a connection and end a session.
+- [Getting Started](getting_started.md): how to run the server, start a host, connect to it, compare the safety code, accept a connection and end a session.
 - [Chat](chat/README.md): sending text messages during a session.
+- [Security](security/README.md): creating the server certificate, connecting with `wss://`, and comparing the safety code.
 
 ## How to document
 This folder holds one file covering the basic usage of the project ([Getting Started](getting_started.md)):

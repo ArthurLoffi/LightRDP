@@ -2,11 +2,11 @@
 Send text messages between the host and the client during a session.
 
 ## Starting the chat
-The chat opens on its own when the two computers connect. Both show:
+The chat opens after the two computers connect and both people confirm the safety code with `y`. Both show:
 ```
  DataChannel 'chat' open! Type messages:
 ```
-To connect the computers, see [Getting Started](../getting_started.md).
+Nothing typed before this line is sent, and nothing is shown from the other computer before it. To connect the computers and compare the code, see [Getting Started](../getting_started.md) and [Security](../security/README.md).
 
 ## Sending a message
 Type the message and press `Enter`. Empty lines are not sent.

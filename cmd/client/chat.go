@@ -39,24 +39,103 @@ func readLines(r io.Reader) <-chan stdinLine {
 	return lines
 }
 
-// Sets up the DataChannel handlers: typed text is sent,
-// received text is printed.
-func setupChannel(dc *webrtc.DataChannel) {
-	dc.OnOpen(func() {
-		fmt.Printf("\n DataChannel '%s' open! Type messages: \n", sanitize(dc.Label()))
-		go func() {
-			for line := range stdinLines() {
-				if line := strings.TrimSpace(line.text); line != "" {
-					if err := dc.SendText(line); err != nil {
-						fmt.Println("failed to send:", err)
-					}
-				}
+const safetyCodeConfirmedMessage = "lightrdp:safety-code-confirmed"
+
+type chat struct {
+	mu              sync.Mutex
+	channel         *webrtc.DataChannel
+	channelOpen     bool
+	localConfirmed  bool
+	remoteConfirmed bool
+	open            bool
+	openedAt        time.Time
+}
+
+func (c *chat) attach(dc *webrtc.DataChannel) {
+	c.mu.Lock()
+	c.channel = dc
+	c.mu.Unlock()
+
+	dc.OnOpen(c.onChannelOpen)
+	dc.OnMessage(c.onMessage)
+}
+
+func (c *chat) onChannelOpen() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.channelOpen = true
+	if c.localConfirmed {
+		c.sendConfirmation()
+	}
+	c.openIfReady()
+}
+
+func (c *chat) confirmLocal() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.localConfirmed {
+		return
+	}
+	c.localConfirmed = true
+	if c.channelOpen {
+		c.sendConfirmation()
+	}
+	c.openIfReady()
+}
+
+func (c *chat) isOpen() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.open
+}
+
+func (c *chat) onMessage(msg webrtc.DataChannelMessage) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if !c.remoteConfirmed {
+		if msg.IsString && string(msg.Data) == safetyCodeConfirmedMessage {
+			c.remoteConfirmed = true
+			c.openIfReady()
+		}
+		return
+	}
+	if !c.open {
+		return
+	}
+	fmt.Printf("< %s\n", sanitize(string(msg.Data)))
+}
+
+func (c *chat) sendConfirmation() {
+	if err := c.channel.SendText(safetyCodeConfirmedMessage); err != nil {
+		fmt.Println("failed to send:", err)
+	}
+}
+
+func (c *chat) openIfReady() {
+	if c.open || !c.channelOpen || !c.localConfirmed || !c.remoteConfirmed {
+		return
+	}
+	c.open = true
+	c.openedAt = time.Now()
+
+	fmt.Printf("\n DataChannel '%s' open! Type messages: \n", sanitize(c.channel.Label()))
+	go c.forwardInput(c.channel, c.openedAt)
+}
+
+func (c *chat) forwardInput(dc *webrtc.DataChannel, openedAt time.Time) {
+	for line := range stdinLines() {
+		if line.readAt.Before(openedAt) {
+			continue
+		}
+		if text := strings.TrimSpace(line.text); text != "" {
+			if err := dc.SendText(text); err != nil {
+				fmt.Println("failed to send:", err)
 			}
-		}()
-	})
-	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		fmt.Printf("< %s\n", sanitize(string(msg.Data)))
-	})
+		}
+	}
 }
 
 // sanitize removes control characters (ANSI escape sequences, \r...)

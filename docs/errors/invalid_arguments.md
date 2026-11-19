@@ -1,6 +1,6 @@
 # Invalid arguments
 **Messages:**
-- `usage: client -mode host|join [-server ws://IP:8080/ws] [-id ID] [-peer HOST_ID]`
+- `usage: client -mode host|join [-server wss://IP:8080/ws] [-ca FILE] [-id ID] [-peer HOST_ID]`
 - `-peer is required with -mode join`
 
 ## Description
@@ -14,4 +14,4 @@ The client was started with missing or invalid options.
 - Start the host with `-mode host`.
 - Start the other machine with `-mode join -peer <HOST_ID>`.
 
-_Documented on: 2026-11-13_
+_Documented on: 2026-11-13 (updated 2026-11-18)_

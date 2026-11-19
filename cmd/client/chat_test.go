@@ -19,6 +19,7 @@ import (
 const (
 	helperEnv       = "LIGHTRDP_TEST_HELPER"
 	helperServerEnv = "LIGHTRDP_TEST_SERVER"
+	helperIDEnv     = "LIGHTRDP_TEST_ID"
 	helperTimeout   = 30 * time.Second
 	chatReply       = "hi\x1b[31m‮!\r"
 )
@@ -49,7 +50,7 @@ func TestSanitize(t *testing.T) {
 	}
 }
 
-func TestSetupChannel(t *testing.T) {
+func TestChatOpensOnlyAfterBothConfirmations(t *testing.T) {
 	cmd := helperCommand(t, "chat")
 	stdinWriter, err := cmd.StdinPipe()
 	if err != nil {
@@ -58,13 +59,23 @@ func TestSetupChannel(t *testing.T) {
 	stdout := startHelper(t, cmd)
 	stderr := cmd.Stderr.(*bytes.Buffer)
 
+	waitForLine(t, stdout, "waiting for local confirmation")
+	if _, err := io.WriteString(stdinWriter, "typed before confirmation\n"); err != nil {
+		t.Fatalf("Expected stdin written, got: %v", err)
+	}
+
 	waitForLine(t, stdout, "DataChannel 'chat' open! Type messages:")
 
 	if _, err := io.WriteString(stdinWriter, "  hello  \n\n   \nworld\n"); err != nil {
 		t.Fatalf("Expected stdin written, got: %v", err)
 	}
 
-	waitForLine(t, stdout, "< "+sanitize(chatReply))
+	seen := waitForLine(t, stdout, "< "+sanitize(chatReply))
+	for _, line := range seen {
+		if strings.HasPrefix(line, "< ") {
+			t.Fatalf("Expected no chat printed before the reply, got: %q", line)
+		}
+	}
 
 	stdinWriter.Close()
 	stopHelper(cmd)
@@ -73,7 +84,7 @@ func TestSetupChannel(t *testing.T) {
 	if strings.Contains(out, "DATA RACE") {
 		t.Fatalf("Expected no data race in helper, got: %s", out)
 	}
-	want := "received \"hello\"\nreceived \"world\"\n"
+	want := "received \"" + safetyCodeConfirmedMessage + "\"\nreceived \"hello\"\nreceived \"world\"\n"
 	if !strings.HasPrefix(out, want) {
 		t.Fatalf("Expected helper to receive exactly %q, got: %q", want, out)
 	}
@@ -86,11 +97,13 @@ func TestHelperProcess(t *testing.T) {
 	case "host":
 		runSessionHelper(t, "host1", "")
 	case "join":
-		runSessionHelper(t, "join1", "host1")
+		runSessionHelper(t, os.Getenv(helperIDEnv), "host1")
 	}
 }
 
 func runChatHelper(t *testing.T) {
+	stdinLines()
+
 	local, err := peer.New(webrtc.Configuration{})
 	if err != nil {
 		t.Fatalf("Expected local peer, got: %v", err)
@@ -103,7 +116,16 @@ func runChatHelper(t *testing.T) {
 	}
 	defer remote.Close()
 
+	remoteOpen := make(chan struct{})
 	remote.OnDataChannel(func(dc *webrtc.DataChannel) {
+		dc.OnOpen(func() {
+			for _, text := range []string{safetyCodeConfirmedMessage, "sent before local confirmation"} {
+				if err := dc.SendText(text); err != nil {
+					fmt.Fprintf(os.Stderr, "send: %v\n", err)
+				}
+			}
+			close(remoteOpen)
+		})
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			text := string(msg.Data)
 			fmt.Fprintf(os.Stderr, "received %q\n", text)
@@ -119,9 +141,22 @@ func runChatHelper(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected data channel, got: %v", err)
 	}
-	setupChannel(dc)
+	c := &chat{}
+	c.attach(dc)
 
 	connectTestPeers(t, local, remote)
+
+	select {
+	case <-remoteOpen:
+	case <-time.After(helperTimeout):
+		t.Fatal("Expected remote channel open before timeout")
+	}
+	fmt.Println("waiting for local confirmation")
+	time.Sleep(time.Second)
+	if c.isOpen() {
+		t.Fatal("Expected chat closed before local confirmation, got: open")
+	}
+	c.confirmLocal()
 
 	time.Sleep(helperTimeout)
 }
@@ -191,7 +226,7 @@ func stopHelper(cmd *exec.Cmd) {
 	_ = cmd.Wait()
 }
 
-func waitForLine(t *testing.T, lines <-chan string, want string) {
+func waitForLine(t *testing.T, lines <-chan string, want string) []string {
 	t.Helper()
 
 	deadline := time.After(helperTimeout)
@@ -203,11 +238,32 @@ func waitForLine(t *testing.T, lines <-chan string, want string) {
 				t.Fatalf("Expected line %q, helper output ended: %q", want, seen)
 			}
 			if strings.TrimSpace(line) == strings.TrimSpace(want) {
-				return
+				return seen
 			}
 			seen = append(seen, line)
 		case <-deadline:
 			t.Fatalf("Expected line %q before timeout, got: %q", want, seen)
+		}
+	}
+}
+
+func waitForPrefix(t *testing.T, lines <-chan string, prefix string) string {
+	t.Helper()
+
+	deadline := time.After(helperTimeout)
+	var seen []string
+	for {
+		select {
+		case line, ok := <-lines:
+			if !ok {
+				t.Fatalf("Expected line starting with %q, helper output ended: %q", prefix, seen)
+			}
+			if strings.HasPrefix(line, prefix) {
+				return line
+			}
+			seen = append(seen, line)
+		case <-deadline:
+			t.Fatalf("Expected line starting with %q before timeout, got: %q", prefix, seen)
 		}
 	}
 }
