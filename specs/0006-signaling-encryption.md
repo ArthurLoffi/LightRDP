@@ -5,7 +5,7 @@
 | Status | In review |
 | Author | ArthurLoffi |
 | Created | 2026-11-18 |
-| Pull request | |
+| Pull request | https://github.com/ArthurLoffi/LightRDP/pull/11 |
 
 ## Goal
 Stop an attacker on the network, or a compromised signaling server, from replacing the DTLS fingerprint inside the SDP and sitting in the middle of the peer-to-peer session. Encrypt the signaling traffic with TLS (`wss://`) and make both users check a safety code proving that the DTLS session really ends at the other user's machine.
