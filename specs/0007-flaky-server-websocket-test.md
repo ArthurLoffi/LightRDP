@@ -5,7 +5,7 @@
 | Status | In review |
 | Author | ArthurLoffi |
 | Created | 2026-11-19 |
-| Pull request | |
+| Pull request | https://github.com/ArthurLoffi/LightRDP/pull/12 |
 
 <!--
 Status values:
