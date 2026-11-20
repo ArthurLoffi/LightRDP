@@ -102,23 +102,36 @@ func TestNewServerRoutesWebSocket(t *testing.T) {
 	writeMessage(t, alice, signaling.Message{Type: signaling.TypeRegister, From: "alice"})
 	writeMessage(t, bob, signaling.Message{Type: signaling.TypeRegister, From: "bob"})
 
-	deadline := time.Now().Add(testTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
+
+	bobMessages := readInBackground(ctx, bob)
+	writeMessage(t, alice, signaling.Message{Type: signaling.TypeConnect, To: "bob"})
+	aliceMessages := readInBackground(ctx, alice)
+
+	lastServerError := ""
 	for {
-		writeMessage(t, alice, signaling.Message{Type: signaling.TypeConnect, To: "bob"})
-
-		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-		var msg signaling.Message
-		err := wsjson.Read(ctx, bob, &msg)
-		cancel()
-
-		if err == nil {
-			if msg.Type != signaling.TypeConnect || msg.From != "alice" {
-				t.Fatalf("Expected connect from alice, got: %+v", msg)
+		select {
+		case result := <-bobMessages:
+			if result.err != nil {
+				t.Fatalf("Expected relayed message, got: %v", result.err)
+			}
+			if result.msg.Type != signaling.TypeConnect || result.msg.From != "alice" {
+				t.Fatalf("Expected connect from alice, got: %+v", result.msg)
 			}
 			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("Expected relayed message before timeout, got: %v", err)
+		case result := <-aliceMessages:
+			if result.err != nil {
+				t.Fatalf("Expected server reply to alice, got: %v", result.err)
+			}
+			lastServerError = serverErrorText(t, result.msg)
+			if lastServerError != "target not found: bob" {
+				t.Fatalf("Expected 'target not found: bob', got: %q", lastServerError)
+			}
+			writeMessage(t, alice, signaling.Message{Type: signaling.TypeConnect, To: "bob"})
+			aliceMessages = readInBackground(ctx, alice)
+		case <-ctx.Done():
+			t.Fatalf("Expected connect from alice before timeout, got: %v (last server error to alice: %q)", ctx.Err(), lastServerError)
 		}
 	}
 }
@@ -165,4 +178,33 @@ func writeMessage(t *testing.T, conn *websocket.Conn, msg signaling.Message) {
 	if err := wsjson.Write(ctx, conn, msg); err != nil {
 		t.Fatalf("Expected message sent, got: %v", err)
 	}
+}
+
+type readResult struct {
+	msg signaling.Message
+	err error
+}
+
+func readInBackground(ctx context.Context, conn *websocket.Conn) <-chan readResult {
+	results := make(chan readResult, 1)
+	go func() {
+		var msg signaling.Message
+		err := wsjson.Read(ctx, conn, &msg)
+		results <- readResult{msg: msg, err: err}
+	}()
+	return results
+}
+
+func serverErrorText(t *testing.T, msg signaling.Message) string {
+	t.Helper()
+
+	if msg.Type != signaling.TypeError || msg.From != "" {
+		t.Fatalf("Expected error message from the server, got: %+v", msg)
+	}
+
+	var payload signaling.ErrorPayload
+	if err := msg.Decode(&payload); err != nil {
+		t.Fatalf("Expected error payload, got: %v", err)
+	}
+	return payload.Message
 }

@@ -3,7 +3,7 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] - 2026-11-18
+## [Unreleased] - 2026-11-19
 ### Added
 - `cmd/server`: `-cert` and `-key` flags serve the signaling server over TLS (`wss://`) on the same `/ws` path. The listen log line has a `tls` attribute (spec 0006).
 - `cmd/client`: `wss://` support with certificate verification against the system roots plus the certificates given by the new `-ca` flag. Verification can never be skipped (spec 0006).
@@ -36,6 +36,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - README rewritten in English with the current usage.
 - `cmd/server`: logger and HTTP server setup moved from `main()` to `newLogger` and `newServer` so they can be tested. Flags, defaults, messages and the `/ws` path are unchanged (spec 0003).
 - Peer connection tests moved from `connection/` to `internal/peer` and updated to the new peer API (`New`, `OnConnectionStateChange`, `CreateOffer`, `HandleOffer`, `HandleAnswer`). Added a test for queued ICE candidates.
+
+### Fixed
+- `cmd/server`: `TestNewServerRoutesWebSocket` no longer fails intermittently. It retried a read on bob's connection after a 200 ms timeout, but `coder/websocket` closes the connection when a read context expires. The test now reads bob's connection once with the full test timeout and sends `connect` again only when the server answers alice with `target not found: bob` (spec 0007).
 
 ### Security
 - Signaling traffic can be encrypted with TLS, and the client refuses unencrypted connections to other machines (spec 0006).
