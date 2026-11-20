@@ -17,6 +17,7 @@ LightRDP is a remote help desk tool, similar to RustDesk and AnyDesk, built to b
 - File names: use `snake_case`.
 - Tests: every new feature must have tests.
 - Tests: never write code that only exists to make tests pass (no special-casing tests, no weakened assertions).
+- Tests: with `coder/websocket`, a read whose context expires closes the connection. Never retry a read on the same connection after a timeout.
 - Features: avoid changing other features when adding a new one. ALWAYS ask before making breaking changes to existing features.
 - Changelog: always update `CHANGELOG.md` for code changes, with the date and version tag.
 - README: keep `README.md` up to date with the current getting-started instructions, and link to the documentation pages (`docs/app/`, `docs/errors/`).

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | In review |
+| Status | Done |
 | Author | ArthurLoffi |
 | Created | 2026-11-17 |
 | Pull request | https://github.com/ArthurLoffi/LightRDP/pull/9 |
