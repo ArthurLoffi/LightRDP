@@ -37,21 +37,21 @@ Copy `server.crt` to the project folder of the host and of the client. It is pub
 
 Then start the server:
 ```
-go run ./cmd/server -bind <SERVER_IP> -cert server.crt -key server.key
+go run ./cmd/lightrdp server --bind <SERVER_IP> --cert server.crt --key server.key
 ```
 You will see a line with `signaling server listening` and `tls=true`. Leave this terminal open.
 
 | Option | What it does | Default |
 |---|---|---|
-| `-bind` | Network address the server listens on. `127.0.0.1` only accepts connections from the same computer. Use the computer's network IP to accept connections from the network, or `0.0.0.0` for every network connection of the computer. | `127.0.0.1` |
-| `-port` | Port the server listens on. | `8080` |
-| `-cert` | Certificate file. Encrypts connections (`wss://`). Required with `-key` when `-bind` is not `127.0.0.1`, `::1` or `localhost`. | none |
-| `-key` | Private key file of the certificate. Required with `-cert`. | none |
-| `-debug` | Shows more detailed messages. | `false` |
+| `--bind` | Network address the server listens on. `127.0.0.1` only accepts connections from the same computer. Use the computer's network IP to accept connections from the network, or `0.0.0.0` for every network connection of the computer. | `127.0.0.1` |
+| `--port` | Port the server listens on. | `8080` |
+| `--cert` | Certificate file. Encrypts connections (`wss://`). Required with `--key` when `--bind` is not `127.0.0.1`, `::1` or `localhost`. | none |
+| `--key` | Private key file of the certificate. Required with `--cert`. | none |
+| `--debug` | Shows more detailed messages. | `false` |
 
 Example with another port:
 ```
-go run ./cmd/server -bind <SERVER_IP> -port 9000 -cert server.crt -key server.key
+go run ./cmd/lightrdp server --bind <SERVER_IP> --port 9000 --cert server.crt --key server.key
 ```
 
 In the steps below, replace `<SERVER_IP>` with the same IP address.
@@ -59,7 +59,7 @@ In the steps below, replace `<SERVER_IP>` with the same IP address.
 ## 2. Start the host
 On the computer that will be accessed:
 ```
-go run ./cmd/client -mode host -id HOST -server wss://<SERVER_IP>:8080/ws -ca server.crt
+go run ./cmd/lightrdp host --id HOST --server wss://<SERVER_IP>:8080/ws --ca server.crt
 ```
 You will see:
 ```
@@ -71,7 +71,7 @@ Tell the person who will connect the ID you chose (`HOST` in this example).
 ## 3. Connect to the host
 On the other computer:
 ```
-go run ./cmd/client -mode join -peer HOST -server wss://<SERVER_IP>:8080/ws -ca server.crt
+go run ./cmd/lightrdp join HOST --server wss://<SERVER_IP>:8080/ws --ca server.crt
 ```
 You will see:
 ```
@@ -117,16 +117,18 @@ When both have answered `y`, both computers show:
 ```
 You can now use the [Chat](chat/README.md). Nothing typed before this line is sent.
 
-## Client options
+## Client commands and options
+`lightrdp host` waits for someone to connect. `lightrdp join HOST_ID` connects to the host with that ID; the host ID is required.
+
 | Option | What it does | Default |
 |---|---|---|
-| `-mode` | `host` waits for someone to connect. `join` connects to a host. Required. | none |
-| `-id` | Your ID on the server. If left empty, a random 6-character ID is created, for example `FO3TFX`. | random |
-| `-peer` | ID of the host to connect to. Required with `-mode join`. | none |
-| `-server` | Address of the server. Use `wss://` for a server on another computer. `ws://` is only accepted for the same computer (`localhost`, `127.0.0.1`, `::1`). | `ws://localhost:8080/ws` |
-| `-ca` | Certificate file to trust for `wss://`, for example the server's `server.crt`. Needed when the server uses a self-signed certificate. | none |
+| `--id` | Your ID on the server. If left empty, a random 6-character ID is created, for example `FO3TFX`. | random |
+| `--server` | Address of the server. Use `wss://` for a server on another computer. `ws://` is only accepted for the same computer (`localhost`, `127.0.0.1`, `::1`). | `ws://localhost:8080/ws` |
+| `--ca` | Certificate file to trust for `wss://`, for example the server's `server.crt`. Needed when the server uses a self-signed certificate. | none |
 
-If the server is on the same computer as the client and was started without `-bind`, you can leave out `-server`. If you changed the server port with `-port`, use the same port in `-server`.
+If the server is on the same computer as the client and was started without `--bind`, you can leave out `--server`. If you changed the server port with `--port`, use the same port in `--server`.
+
+Every command shows its options, defaults and examples with `--help`, for example `go run ./cmd/lightrdp join --help`. `go run ./cmd/lightrdp version` shows the version.
 
 ## Ending a session
 Press `Ctrl+C` in the terminal of the host or the client.
@@ -158,11 +160,11 @@ Press `Ctrl+C` in the server terminal to stop the server.
 ## Something went wrong?
 | What you see | Page |
 |---|---|
-| `usage: client -mode host\|join ...` or `-peer is required with -mode join` | [Invalid arguments](../errors/invalid_arguments.md) |
+| `Error: accepts 1 arg(s), received 0`, `Error: unknown command ...` or `Error: unknown flag: ...` | [Invalid arguments](../errors/invalid_arguments.md) |
 | `error: transport: insecure server URL ws://<ADDRESS>/ws: use wss://` | [Insecure server address](../errors/insecure_server_url.md) |
 | `error: transport: dial wss://... x509: certificate signed by unknown authority` | [Server certificate not trusted](../errors/untrusted_certificate.md) |
 | `error: transport: dial wss://... x509: certificate is valid for <NAME>, not <ADDRESS>` | [Certificate does not match the server address](../errors/certificate_name_mismatch.md) |
-| `error: -ca: ...` | [Invalid certificate file](../errors/invalid_ca_file.md) |
+| `error: --ca: ...` | [Invalid certificate file](../errors/invalid_ca_file.md) |
 | `error: transport: dial ...` | [Cannot reach the signaling server](../errors/server_unreachable.md) |
 | `error: server: id already registered` | [ID already registered](../errors/id_already_registered.md) |
 | `error: server: target not found: <ID>` | [Host not found](../errors/peer_not_found.md) |
@@ -172,8 +174,8 @@ Press `Ctrl+C` in the server terminal to stop the server.
 | `error: safety code not confirmed` or `error: connection refused: safety code not confirmed` | [Safety code not confirmed](../errors/safety_code_not_confirmed.md) |
 | `error: signaling server disconnected: ...` | [Signaling server disconnected](../errors/server_disconnected.md) |
 | `error: peer connection failed` | [Peer connection failed](../errors/peer_connection_failed.md) |
-| Server: `-cert and -key must be used together` | [Certificate or key missing](../errors/tls_flags_incomplete.md) |
-| Server: `-cert and -key are required when -bind is not a loopback address` | [Encryption required on the network](../errors/tls_required.md) |
+| Server: `--cert and --key must be used together` | [Certificate or key missing](../errors/tls_flags_incomplete.md) |
+| Server: `--cert and --key are required when --bind is not a loopback address` | [Encryption required on the network](../errors/tls_required.md) |
 | Server: `server stopped err=... tls: ...` | [Server cannot load the certificate](../errors/server_tls_files.md) |
 
 All known errors are listed in [Known errors](../errors/README.md).
