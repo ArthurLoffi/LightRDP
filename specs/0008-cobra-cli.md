@@ -5,7 +5,7 @@
 | Status | In review |
 | Author | ArthurLoffi |
 | Created | 2026-11-20 |
-| Pull request | |
+| Pull request | https://github.com/ArthurLoffi/LightRDP/pull/13 |
 
 <!--
 Status values:
@@ -141,7 +141,7 @@ Approved by the author on 2026-11-20.
 - [x] Moved tests pass in their new packages; new tests cover `internal/cli`.
 - [x] `README.md`, `AGENTS.md`, `docs/app/` and `docs/errors/` use only the new commands and flags.
 - [x] `CHANGELOG.md` has a `[0.0.1]` section with the date, breaking changes marked.
-- [ ] Notion "Arquitetura do LightRDP" and card LRDP-14 updated.
+- [x] Notion "Arquitetura do LightRDP" and card LRDP-14 updated.
 - [x] `cmd/client`, `cmd/server` and `cli/` removed; `go build ./...`, `go vet ./...` and `go test ./...` pass.
 
 ## Test plan
