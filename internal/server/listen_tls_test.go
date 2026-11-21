@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"context"
@@ -69,8 +69,8 @@ func writeTestCertificate(t *testing.T) (certFile, keyFile string, cert *x509.Ce
 }
 
 func TestValidateListenConfig(t *testing.T) {
-	const together = "-cert and -key must be used together"
-	const required = "-cert and -key are required when -bind is not a loopback address"
+	const together = "--cert and --key must be used together"
+	const required = "--cert and --key are required when --bind is not a loopback address"
 
 	cases := []struct {
 		bind, cert, key, want string
@@ -93,13 +93,13 @@ func TestValidateListenConfig(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		err := validateListenConfig(c.bind, c.cert, c.key)
+		err := ValidateListenConfig(c.bind, c.cert, c.key)
 		got := ""
 		if err != nil {
 			got = err.Error()
 		}
 		if got != c.want {
-			t.Fatalf("Expected validateListenConfig(%q, %q, %q) = %q, got: %q", c.bind, c.cert, c.key, c.want, got)
+			t.Fatalf("Expected ValidateListenConfig(%q, %q, %q) = %q, got: %q", c.bind, c.cert, c.key, c.want, got)
 		}
 	}
 }
@@ -111,10 +111,10 @@ func startTestServer(t *testing.T, certFile, keyFile string) (string, <-chan err
 	if err != nil {
 		t.Fatalf("Expected listener, got: %v", err)
 	}
-	srv := newServer(ln.Addr().String(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	srv := NewHTTPServer(ln.Addr().String(), slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	result := make(chan error, 1)
-	go func() { result <- serve(srv, ln, certFile, keyFile) }()
+	go func() { result <- Serve(srv, ln, certFile, keyFile) }()
 	t.Cleanup(func() { srv.Close() })
 
 	return ln.Addr().String(), result
@@ -177,5 +177,29 @@ func TestServeTLSWithBadFiles(t *testing.T) {
 				t.Fatal("Expected serve to fail before timeout")
 			}
 		})
+	}
+}
+
+func TestListenReturnsStoppedErrorOnBadTLSFiles(t *testing.T) {
+	captureStderr(t)
+	certFile, _, _ := writeTestCertificate(t)
+	_, otherKey, _ := writeTestCertificate(t)
+
+	result := make(chan error, 1)
+	go func() {
+		result <- Listen(ListenConfig{Bind: "127.0.0.1", Port: 0, CertFile: certFile, KeyFile: otherKey})
+	}()
+
+	select {
+	case err := <-result:
+		var stopped *StoppedError
+		if !errors.As(err, &stopped) {
+			t.Fatalf("Expected StoppedError, got: %v", err)
+		}
+		if !strings.Contains(err.Error(), "tls: ") {
+			t.Fatalf("Expected 'tls: ...' error, got: %v", err)
+		}
+	case <-time.After(testTimeout):
+		t.Fatal("Expected Listen to fail before timeout")
 	}
 }

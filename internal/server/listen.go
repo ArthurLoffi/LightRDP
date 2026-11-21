@@ -1,10 +1,8 @@
-package main
+package server
 
 import (
 	"context"
 	"errors"
-	"flag"
-	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -14,52 +12,67 @@ import (
 	"syscall"
 	"time"
 
-	"LightRDP/internal/server"
 	"LightRDP/internal/transport"
 )
 
-func main() {
-	bind := flag.String("bind", "127.0.0.1", "listen address (use 0.0.0.0 to listen all interfaces; non-loopback addresses require -cert and -key)")
-	port := flag.Int("port", 8080, "port")
-	debug := flag.Bool("debug", false, "verbose logs")
-	certFile := flag.String("cert", "", "TLS certificate file (PEM); serves wss:// together with -key")
-	keyFile := flag.String("key", "", "TLS private key file (PEM); serves wss:// together with -cert")
-	flag.Parse()
+type ListenConfig struct {
+	Bind     string
+	Port     int
+	Debug    bool
+	CertFile string
+	KeyFile  string
+}
 
-	if err := validateListenConfig(*bind, *certFile, *keyFile); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(2)
-	}
+func Listen(cfg ListenConfig) error {
+	addr := net.JoinHostPort(cfg.Bind, strconv.Itoa(cfg.Port))
 
-	addr := net.JoinHostPort(*bind, strconv.Itoa(*port))
-
-	log := newLogger(*debug)
-	srv := newServer(addr, log)
+	log := NewLogger(cfg.Debug)
+	srv := NewHTTPServer(addr, log)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	stopped := make(chan error, 1)
 	go func() {
-		log.Info("signaling server listening", "addr", addr, "path", "/ws", "tls", *certFile != "")
+		log.Info("signaling server listening", "addr", addr, "path", "/ws", "tls", cfg.CertFile != "")
 		ln, err := net.Listen("tcp", addr)
 		if err == nil {
-			err = serve(srv, ln, *certFile, *keyFile)
+			err = Serve(srv, ln, cfg.CertFile, cfg.KeyFile)
 		}
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("server stopped", "err", err)
-			os.Exit(1)
-		}
+		stopped <- err
 	}()
 
-	<-ctx.Done()
+	select {
+	case err := <-stopped:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		log.Error("server stopped", "err", err)
+		return &StoppedError{Err: err}
+	case <-ctx.Done():
+	}
+
 	log.Info("shutting down")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(shutdownCtx)
+	return nil
 }
 
-func newLogger(debug bool) *slog.Logger {
+type StoppedError struct {
+	Err error
+}
+
+func (e *StoppedError) Error() string {
+	return "server stopped: " + e.Err.Error()
+}
+
+func (e *StoppedError) Unwrap() error {
+	return e.Err
+}
+
+func NewLogger(debug bool) *slog.Logger {
 	level := slog.LevelInfo
 	if debug {
 		level = slog.LevelDebug
@@ -67,9 +80,9 @@ func newLogger(debug bool) *slog.Logger {
 	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
 }
 
-func newServer(addr string, log *slog.Logger) *http.Server {
+func NewHTTPServer(addr string, log *slog.Logger) *http.Server {
 	mux := http.NewServeMux()
-	mux.Handle("/ws", server.NewHub(log))
+	mux.Handle("/ws", NewHub(log))
 
 	return &http.Server{
 		Addr:              addr,
@@ -78,17 +91,17 @@ func newServer(addr string, log *slog.Logger) *http.Server {
 	}
 }
 
-func validateListenConfig(bind, certFile, keyFile string) error {
+func ValidateListenConfig(bind, certFile, keyFile string) error {
 	if (certFile == "") != (keyFile == "") {
-		return errors.New("-cert and -key must be used together")
+		return errors.New("--cert and --key must be used together")
 	}
 	if certFile == "" && !transport.IsLoopbackHost(bind) {
-		return errors.New("-cert and -key are required when -bind is not a loopback address")
+		return errors.New("--cert and --key are required when --bind is not a loopback address")
 	}
 	return nil
 }
 
-func serve(srv *http.Server, ln net.Listener, certFile, keyFile string) error {
+func Serve(srv *http.Server, ln net.Listener, certFile, keyFile string) error {
 	if certFile == "" {
 		return srv.Serve(ln)
 	}

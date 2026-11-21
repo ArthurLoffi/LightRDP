@@ -21,24 +21,24 @@ This creates two files:
 
 The certificate is valid for 365 days and only for the IP address written in it. If the server IP changes, create the certificate again and copy the new `server.crt` to the clients.
 
-To use a name instead of an IP, write `subjectAltName=DNS:<NAME>`, and use the same name in `-server`.
+To use a name instead of an IP, write `subjectAltName=DNS:<NAME>`, and use the same name in `--server`.
 
 ### 2. Start the server with the certificate
 ```bash
-go run ./cmd/server -bind <SERVER_IP> -cert server.crt -key server.key
+go run ./cmd/lightrdp server --bind <SERVER_IP> --cert server.crt --key server.key
 ```
 The server line shows `tls=true`.
 
 ### 3. Start the clients with the certificate
 On each client computer, with `server.crt` copied to the project folder:
 ```bash
-go run ./cmd/client -mode host -id HOST -server wss://<SERVER_IP>:8080/ws -ca server.crt
-go run ./cmd/client -mode join -peer HOST -server wss://<SERVER_IP>:8080/ws -ca server.crt
+go run ./cmd/lightrdp host --id HOST --server wss://<SERVER_IP>:8080/ws --ca server.crt
+go run ./cmd/lightrdp join HOST --server wss://<SERVER_IP>:8080/ws --ca server.crt
 ```
-`-ca` tells the client to trust this certificate. Without it, the client only trusts certificates from public certificate authorities and refuses the self-signed one. The client always checks the certificate; there is no option to skip the check.
+`--ca` tells the client to trust this certificate. Without it, the client only trusts certificates from public certificate authorities and refuses the self-signed one. The client always checks the certificate; there is no option to skip the check.
 
 ### Same computer only
-If the server and the clients all run on the same computer, no certificate is needed: start the server without `-bind` (it listens on `127.0.0.1`) and leave out `-server` in the clients. `ws://` is only accepted for `localhost`, `127.0.0.1` and `::1`.
+If the server and the clients all run on the same computer, no certificate is needed: start the server without `--bind` (it listens on `127.0.0.1`) and leave out `--server` in the clients. `ws://` is only accepted for `localhost`, `127.0.0.1` and `::1`.
 
 ## Safety code
 After the two computers connect, both show the same 6-digit code, for example:

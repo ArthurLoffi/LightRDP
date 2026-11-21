@@ -9,8 +9,8 @@ The machine you are trying to reach is not connected to the signaling server.
 - The host is not running, or it is connected to a different server.
 
 ## Possible solution
-- Check the ID passed to `-peer`. IDs are case-sensitive.
+- Check the host ID passed to `lightrdp join <HOST_ID>`. IDs are case-sensitive.
 - Make sure the host is running and shows "Waiting for connections...".
-- Make sure both machines use the same `-server` address.
+- Make sure both machines use the same `--server` address.
 
-_Documented on: 2026-11-13_
+_Documented on: 2026-11-13 (updated 2026-11-21)_

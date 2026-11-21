@@ -10,7 +10,7 @@ The server stopped right after starting because it could not use the certificate
 - One of the files is not in PEM format.
 
 ## Possible solution
-- Check the paths given in `-cert` and `-key`.
+- Check the paths given in `--cert` and `--key`.
 - Make sure both files were created by the same `openssl` command. If in doubt, create them again. See [Security](../app/security/README.md).
 
-_Documented on: 2026-11-18_
+_Documented on: 2026-11-18 (updated 2026-11-21)_

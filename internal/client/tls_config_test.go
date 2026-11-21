@@ -1,4 +1,4 @@
-package main
+package client
 
 import (
 	"crypto/ecdsa"
@@ -50,7 +50,7 @@ func writeCertificateFile(t *testing.T) (string, *x509.Certificate) {
 }
 
 func TestLoadTLSConfigWithoutCA(t *testing.T) {
-	cfg, err := loadTLSConfig("")
+	cfg, err := LoadTLSConfig("")
 	if err != nil {
 		t.Fatalf("Expected config, got: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestLoadTLSConfigWithoutCA(t *testing.T) {
 func TestLoadTLSConfigWithValidCA(t *testing.T) {
 	path, cert := writeCertificateFile(t)
 
-	cfg, err := loadTLSConfig(path)
+	cfg, err := LoadTLSConfig(path)
 	if err != nil {
 		t.Fatalf("Expected config, got: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestLoadTLSConfigWithValidCA(t *testing.T) {
 }
 
 func TestLoadTLSConfigWithMissingCA(t *testing.T) {
-	_, err := loadTLSConfig(filepath.Join(t.TempDir(), "missing.crt"))
+	_, err := LoadTLSConfig(filepath.Join(t.TempDir(), "missing.crt"))
 	if !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("Expected file not found error, got: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestLoadTLSConfigWithInvalidPEM(t *testing.T) {
 				t.Fatalf("Expected file written, got: %v", err)
 			}
 
-			_, err := loadTLSConfig(path)
+			_, err := LoadTLSConfig(path)
 			if err == nil || err.Error() != "no valid PEM certificate in "+path {
 				t.Fatalf("Expected 'no valid PEM certificate in %s', got: %v", path, err)
 			}
