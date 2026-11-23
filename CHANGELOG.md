@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Logo and README card in `docs/assets/`: the mark as SVG (`logo_mark.svg`), the horizontal logo for dark and light backgrounds (`logo_dark.png`, `logo_light.png`) and a 1280×640 card (`readme_card.png`) shown at the top of `README.md` (2026-11-23).
+
 ## [0.0.1] - 2026-11-21
 Git tag: `v0.0.1`.
 

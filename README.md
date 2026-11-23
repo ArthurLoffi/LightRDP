@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/readme_card.png" alt="LightRDP: lightweight remote help desk" width="100%">
+</p>
+
 # LightRDP
 A lightweight remote help desk tool, similar to RustDesk and AnyDesk.
 
@@ -71,4 +75,5 @@ Every command has `--help` with its flags, defaults and examples, for example `g
 ## Documentation
 - [Application usage](docs/app/README.md)
 - [Known errors](docs/errors/README.md)
+- [Logo and visual assets](docs/assets/README.md)
 - [Changelog](CHANGELOG.md)

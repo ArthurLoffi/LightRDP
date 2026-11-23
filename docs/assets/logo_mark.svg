@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 64 64" role="img" aria-label="LightRDP">
+  <rect width="64" height="64" rx="15" fill="#0F1419"/>
+  <rect x="13" y="14" width="38" height="28" rx="5" fill="none" stroke="#F5F6F3" stroke-width="4"/>
+  <path d="M20 51h12" stroke="#F5F6F3" stroke-width="4" stroke-linecap="round"/>
+  <path d="M30 26 L30 44.7 L35.1 39.6 L38.5 47.3 L41.9 45.6 L38.5 37.9 L45.3 37.9 Z" fill="#FFC53D" stroke="#0F1419" stroke-width="5" stroke-linejoin="round" paint-order="stroke"/>
+</svg>
