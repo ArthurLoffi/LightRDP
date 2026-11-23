@@ -6,3 +6,6 @@ How to use the application: from remote help desk sessions to chat and session h
 
 ## errors/
 Errors you may run into, each one documented with its cause and how to fix it.
+
+## assets/
+The LightRDP logo, README card and brand colors.
