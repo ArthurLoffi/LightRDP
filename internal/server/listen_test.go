@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"context"
@@ -17,8 +17,6 @@ import (
 
 	"LightRDP/internal/signaling"
 )
-
-const testTimeout = 5 * time.Second
 
 func captureStderr(t *testing.T) *os.File {
 	t.Helper()
@@ -51,7 +49,7 @@ func readCaptured(t *testing.T, file *os.File) string {
 func TestNewLoggerWithoutDebug(t *testing.T) {
 	stderr := captureStderr(t)
 
-	log := newLogger(false)
+	log := NewLogger(false)
 	log.Debug("debug message")
 	log.Info("info message")
 
@@ -67,7 +65,7 @@ func TestNewLoggerWithoutDebug(t *testing.T) {
 func TestNewLoggerWithDebug(t *testing.T) {
 	stderr := captureStderr(t)
 
-	log := newLogger(true)
+	log := NewLogger(true)
 	log.Debug("debug message")
 
 	out := readCaptured(t, stderr)
@@ -77,7 +75,7 @@ func TestNewLoggerWithDebug(t *testing.T) {
 }
 
 func TestNewServerSettings(t *testing.T) {
-	srv := newServer("127.0.0.1:9999", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	srv := NewHTTPServer("127.0.0.1:9999", slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	if srv.Addr != "127.0.0.1:9999" {
 		t.Fatalf("Expected Addr '127.0.0.1:9999', got: %q", srv.Addr)
@@ -91,7 +89,7 @@ func TestNewServerSettings(t *testing.T) {
 }
 
 func TestNewServerRoutesWebSocket(t *testing.T) {
-	srv := newServer("", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	srv := NewHTTPServer("", slog.New(slog.NewTextHandler(io.Discard, nil)))
 	ts := httptest.NewServer(srv.Handler)
 	t.Cleanup(ts.Close)
 
@@ -137,7 +135,7 @@ func TestNewServerRoutesWebSocket(t *testing.T) {
 }
 
 func TestNewServerUnknownPath(t *testing.T) {
-	srv := newServer("", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	srv := NewHTTPServer("", slog.New(slog.NewTextHandler(io.Discard, nil)))
 	ts := httptest.NewServer(srv.Handler)
 	t.Cleanup(ts.Close)
 

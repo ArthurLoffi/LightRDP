@@ -3,8 +3,14 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased] - 2026-11-19
+## [Unreleased]
+
+## [0.0.1] - 2026-11-21
+Git tag: `v0.0.1`.
+
 ### Added
+- `lightrdp` binary (`cmd/lightrdp`) built on `github.com/spf13/cobra`, with the `server`, `host`, `join HOST_ID`, `version` and `completion` commands. Every command has `--help` with a description, its flags and defaults, and examples. `lightrdp version` prints `lightrdp v0.0.1` (spec 0008).
+- Usage errors (unknown command, unknown flag, wrong argument count) print `Error: ...` followed by the command usage and exit with code 2; runtime errors keep exit code 1 (spec 0008).
 - `cmd/server`: `-cert` and `-key` flags serve the signaling server over TLS (`wss://`) on the same `/ws` path. The listen log line has a `tls` attribute (spec 0006).
 - `cmd/client`: `wss://` support with certificate verification against the system roots plus the certificates given by the new `-ca` flag. Verification can never be skipped (spec 0006).
 - Mandatory safety code: after the peer connection is `connected`, both clients show a 6-digit code (`NNN NNN`) derived from the two DTLS certificate fingerprints used in the handshake (host first, joiner second). The chat opens only after both users confirm it with `y` (spec 0006).
@@ -20,6 +26,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Tests for `internal/signaling`, `internal/config`, `internal/server`, `internal/transport`, `cmd/server` and `cmd/client`, and more tests for `internal/peer` (spec 0003).
 
 ### Changed
+- **Breaking:** `go run ./cmd/server` and `go run ./cmd/client` were replaced by `go run ./cmd/lightrdp server|host|join`. `cmd/client` and `cmd/server` were removed (spec 0008).
+- **Breaking:** `-mode host` is now `lightrdp host`, and `-mode join -peer HOST` is now `lightrdp join HOST`. `-mode` and `-peer` were removed (spec 0008).
+- **Breaking:** long flags now take two dashes: `--bind`, `--port`, `--cert`, `--key`, `--debug`, `--server`, `--ca` and `--id`. Single-dash long flags are refused as unknown flags. Defaults are unchanged (spec 0008).
+- **Breaking:** the client usage messages `usage: client -mode host|join ...` and `-peer is required with -mode join` were replaced by cobra usage errors. The TLS and CA messages use the new flag names: `--cert and --key must be used together`, `--cert and --key are required when --bind is not a loopback address` and `error: --ca: <reason>` (spec 0008).
+- **Breaking (internal):** the runtime code moved from `package main` to importable packages: the server listen loop, logger and TLS checks to `internal/server` (`listen.go`), and the client session, chat, safety code and TLS loading to `internal/client`. The server listen loop returns an error instead of calling `os.Exit` (spec 0008).
+- `github.com/spf13/cobra` v1.10.2 is a direct dependency (spec 0008).
 - **Breaking:** `cmd/server` refuses to start when `-bind` is not a loopback address and `-cert`/`-key` are not set, or when only one of them is set (spec 0006).
 - **Breaking:** `cmd/client` refuses `ws://` to any address that is not loopback; use `wss://` (spec 0006).
 - **Breaking:** host approval merged with the safety code: the host is no longer asked before negotiation. It prints `Connection request from "<ID>"`, connects, and then asks `Accept "<ID>" with this code? [y/N]`; the joiner asks `Same code on the host? [y/N]`. A refusal on the joiner sends `reject` with `safety code not confirmed`. The 60-second timeout covers negotiation and the host answer. The requester now gets the host's ICE candidates and a DTLS connection before the host decides; no chat data passes before both confirm (spec 0006).

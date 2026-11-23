@@ -7,8 +7,8 @@ LightRDP is a remote help desk tool, similar to RustDesk and AnyDesk, built to b
 - coder/websocket v1
 
 ## Folder Structure
-- `cmd/`: application entry points (`server` and `client`).
-- `internal/`: private packages: peer connections, transport, WebSocket handling, signaling protocol, helpers.
+- `cmd/`: application entry point (`lightrdp`, with the `server`, `host`, `join` and `version` commands).
+- `internal/`: private packages: CLI commands (`cli`), client runtime (`client`), signaling server, peer connections, transport, WebSocket handling, signaling protocol, helpers.
 - `docs/`: user-facing documentation (`app/` for usage, `errors/` for known errors).
 - `specs/`: feature specs (`_TEMPLATE.md` is the template, `done/` holds merged specs).
 - `.claude/commands/`: `/spec` creates a spec, `/implement` implements a spec and opens a PR.

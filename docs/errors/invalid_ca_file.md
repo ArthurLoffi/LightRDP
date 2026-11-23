@@ -1,8 +1,8 @@
 # Invalid certificate file
-**Message:** `error: -ca: <CAUSE>`
+**Message:** `error: --ca: <CAUSE>`
 
 ## Description
-The client could not use the file given in `-ca`.
+The client could not use the file given in `--ca`.
 
 ## Cause
 - The file does not exist or cannot be read (for example `open server.crt: no such file or directory`).
@@ -12,4 +12,4 @@ The client could not use the file given in `-ca`.
 - Check the path to the file.
 - Pass the certificate file (`server.crt`, which starts with `-----BEGIN CERTIFICATE-----`), never the key.
 
-_Documented on: 2026-11-18_
+_Documented on: 2026-11-18 (updated 2026-11-21)_
