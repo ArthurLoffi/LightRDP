@@ -2,75 +2,42 @@
   <img src="docs/assets/readme_card.png" alt="LightRDP: lightweight remote help desk" width="100%">
 </p>
 
-# LightRDP
-A lightweight remote help desk tool, similar to RustDesk and AnyDesk.
-
 > Current state: two machines can connect peer-to-peer (WebRTC) through a signaling server and exchange text messages. Remote desktop is not implemented yet.
 
-## Requirements
-- Go 1.26.9 or newer
+## Quick start
+Requires Go 1.26.9 or newer on each machine.
 
-## Usage
-### 1. Start the signaling server
-Run it on one machine of the network. To accept other machines, the server needs a certificate (TLS, `wss://`). Create a self-signed one with the server IP in it:
+1. On the server machine, create a certificate with its IP address and start the server:
 ```
 openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 365 \
   -keyout server.key -out server.crt -subj "/CN=LightRDP" \
   -addext "subjectAltName=IP:<SERVER_IP>"
+go run ./cmd/lightrdp server --bind <SERVER_IP> --cert server.crt --key server.key
 ```
-Copy `server.crt` (public) to each client machine. `server.key` stays on the server.
-```
-go run ./cmd/lightrdp server                                                       # 127.0.0.1:8080, this machine only, no TLS
-go run ./cmd/lightrdp server --bind <SERVER_IP> --cert server.crt --key server.key  # network address, wss://
-go run ./cmd/lightrdp server --bind 0.0.0.0 --port 9000 --cert server.crt --key server.key
-go run ./cmd/lightrdp server --debug                                               # verbose logs
-```
-The server refuses to start on a non-loopback `--bind` without `--cert` and `--key`. See [Security](docs/app/security/README.md).
+Copy `server.crt` to the other machines. `server.key` stays on the server.
 
-### 2. Start the host (the machine that will be accessed)
+2. On the host (the machine that will be accessed):
 ```
 go run ./cmd/lightrdp host --id HOST --server wss://<SERVER_IP>:8080/ws --ca server.crt
 ```
-If `--id` is omitted, a random ID is generated and printed.
 
-### 3. Connect from another machine
+3. On the other machine:
 ```
 go run ./cmd/lightrdp join HOST --server wss://<SERVER_IP>:8080/ws --ca server.crt
 ```
-`--ca` trusts the server's self-signed certificate. `ws://` is only accepted for `localhost`, `127.0.0.1` and `::1`.
 
-Once the machines connect, both show the same `Safety code: NNN NNN`. Compare it by phone or in person. The host is asked `Accept "<ID>" with this code? [y/N]` and the client `Same code on the host? [y/N]`. Type `y` only if the codes match; any other answer, or no answer from the host within 60 seconds of the request, closes the connection.
+4. Both machines show the same `Safety code: NNN NNN`. Compare it by phone or in person and answer `y` on both only if it matches. The chat then opens.
 
-Once both confirm, the chat opens: type messages in either terminal to send them.
-
-### Commands
-```
-lightrdp server [--bind 127.0.0.1] [--port 8080] [--cert FILE --key FILE] [--debug]
-lightrdp host [--server wss://IP:8080/ws] [--ca FILE] [--id ID]
-lightrdp join HOST_ID [--server wss://IP:8080/ws] [--ca FILE] [--id ID]
-lightrdp version
-lightrdp completion bash|zsh|fish|powershell
-```
-Every command has `--help` with its flags, defaults and examples, for example `go run ./cmd/lightrdp join --help`. To build the binary, run `go build ./cmd/lightrdp`.
-
-### Network
-- The server machine must accept TCP connections on the server port (default `8080`).
-- The two peers must be able to exchange UDP traffic. Firewalls such as `ufw` or `firewalld` may block it.
-- Only open the ports you need, and only to your local network.
+Every command has `--help`. To build the binary, run `go build ./cmd/lightrdp`. For all options, the network setup and what each prompt means, see [Getting Started](docs/app/getting_started.md).
 
 ## How it works
-- **Signaling server** (`lightrdp server`): registers clients by ID and relays connection requests, SDP offers/answers and ICE candidates over TLS (`wss://`). It never sees the peer-to-peer traffic.
-- **Safety code**: derived from the DTLS certificates used in the peer-to-peer handshake, so a network attacker or a compromised server that swaps the SDP fingerprint produces different codes on the two machines.
-- **Client** (`lightrdp host` and `lightrdp join`): connects to the server, negotiates a WebRTC connection with the other peer, and chats over a DataChannel.
+The signaling server (`lightrdp server`) registers clients by ID and relays the WebRTC negotiation over `wss://`; it never sees the peer-to-peer traffic. The host and the client then connect directly and chat over a DataChannel. The safety code comes from the DTLS certificates of that direct connection, so a swapped connection shows different codes on the two machines. See [Security](docs/app/security/README.md).
+
+Built with Go, [pion/webrtc](https://github.com/pion/webrtc) and [coder/websocket](https://github.com/coder/websocket).
 
 ## Roadmap
 - Access code: a short public ID tied to the machine plus a one-time password generated by the host.
 - Remote desktop window for the client.
-
-## Stack
-- Go
-- WebRTC ([pion/webrtc](https://github.com/pion/webrtc))
-- WebSocket ([coder/websocket](https://github.com/coder/websocket))
 
 ## Documentation
 - [Application usage](docs/app/README.md)
