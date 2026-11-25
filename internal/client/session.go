@@ -17,9 +17,10 @@ import (
 )
 
 const (
-	sendTimeout        = 5 * time.Second
-	hostConfirmTimeout = 60 * time.Second
-	hostAnswerGrace    = time.Second
+	sendTimeout            = 5 * time.Second
+	hostConfirmTimeout     = 60 * time.Second
+	safetyHandshakeTimeout = 60 * time.Second
+	hostAnswerGrace        = time.Second
 
 	hostBusyMessage             = "host busy"
 	refusedByHostMessage        = "refused by host"
@@ -47,8 +48,9 @@ type session struct {
 	peer     *peer.Peer
 	chat     *chat
 
-	connected atomic.Bool
-	states    chan peerState
+	connected  atomic.Bool
+	states     chan peerState
+	handshakes chan safetyHandshakeResult
 
 	lines          <-chan stdinLine
 	confirmTimeout time.Duration
@@ -57,18 +59,23 @@ type session struct {
 	promptedAt     time.Time
 	confirmed      bool
 	confirmExpired <-chan time.Time
+
+	handshakeTimeout time.Duration
+	handshakeExpired <-chan time.Time
 }
 
 func newSession(ctx context.Context, conn *transport.Conn, cfg webrtc.Configuration, selfID string) *session {
 	return &session{
-		ctx:    ctx,
-		conn:   conn,
-		cfg:    cfg,
-		selfID: selfID,
-		states: make(chan peerState, 16),
+		ctx:        ctx,
+		conn:       conn,
+		cfg:        cfg,
+		selfID:     selfID,
+		states:     make(chan peerState, 16),
+		handshakes: make(chan safetyHandshakeResult, 16),
 
-		confirmTimeout: hostConfirmTimeout,
-		answerGrace:    hostAnswerGrace,
+		confirmTimeout:   hostConfirmTimeout,
+		answerGrace:      hostAnswerGrace,
+		handshakeTimeout: safetyHandshakeTimeout,
 	}
 }
 
@@ -114,6 +121,14 @@ func (s *session) loop() error {
 			if err != nil || ended {
 				return err
 			}
+
+		case result := <-s.handshakes:
+			if err := s.onSafetyHandshake(result); err != nil {
+				return err
+			}
+
+		case <-s.handshakeExpired:
+			return handshakeFailed("timed out")
 
 		case msg, ok := <-msgs:
 			if !ok {
@@ -255,7 +270,10 @@ func (s *session) onPeerState(ev peerState) (bool, error) {
 	switch ev.state {
 	case webrtc.PeerConnectionStateConnected:
 		s.connected.Store(true)
-		return false, s.askSafetyCode()
+		if s.joining && !s.confirmed && s.question == "" {
+			s.handshakeExpired = time.After(s.handshakeTimeout)
+		}
+		return false, nil
 	// The state changes to failed after 30 seconds
 	// without activity or on any other failure.
 	case webrtc.PeerConnectionStateFailed:
@@ -287,7 +305,18 @@ func (s *session) onInvalidRemoteMessage(err error) error {
 	return nil
 }
 
-func (s *session) askSafetyCode() error {
+func (s *session) onSafetyHandshake(result safetyHandshakeResult) error {
+	if result.chat != s.chat {
+		return nil
+	}
+	s.handshakeExpired = nil
+	if result.err != nil {
+		return s.onInvalidRemoteMessage(result.err)
+	}
+	return s.askSafetyCode(result.joinerNonce, result.hostNonce)
+}
+
+func (s *session) askSafetyCode(joinerNonce, hostNonce []byte) error {
 	if s.confirmed || s.question != "" {
 		return nil
 	}
@@ -298,11 +327,12 @@ func (s *session) askSafetyCode() error {
 	}
 
 	question := joinerQuestion
-	code := safetyCode(fingerprints.Remote, fingerprints.Local)
+	hostFingerprint, joinerFingerprint := fingerprints.Remote, fingerprints.Local
 	if !s.joining {
 		question = fmt.Sprintf("Accept %q with this code? [y/N] ", sanitize(s.remoteID))
-		code = safetyCode(fingerprints.Local, fingerprints.Remote)
+		hostFingerprint, joinerFingerprint = fingerprints.Local, fingerprints.Remote
 	}
+	code := safetyCode(hostFingerprint, joinerFingerprint, joinerNonce, hostNonce)
 
 	fmt.Printf("Safety code: %s\n", code)
 	s.prompt(question)
@@ -377,6 +407,7 @@ func (s *session) dropAttempt() string {
 	s.question = ""
 	s.confirmed = false
 	s.confirmExpired = nil
+	s.handshakeExpired = nil
 	s.connected.Store(false)
 	return from
 }
@@ -398,7 +429,10 @@ func (s *session) startPeer(remoteID string) error {
 
 	s.remoteID = remoteID
 	s.peer = p
-	s.chat = &chat{}
+	s.chat = &chat{
+		handshake: safetyHandshake{joining: s.joining},
+		report:    s.reportSafetyHandshake,
+	}
 
 	// Trickle ICE: each local candidate goes to the other side as soon as it appears.
 	p.OnICECandidate(func(c webrtc.ICECandidateInit) {
@@ -418,6 +452,13 @@ func (s *session) startPeer(remoteID string) error {
 	})
 
 	return nil
+}
+
+func (s *session) reportSafetyHandshake(result safetyHandshakeResult) {
+	select {
+	case s.handshakes <- result:
+	case <-s.ctx.Done():
+	}
 }
 
 // fromRemote drops messages from anyone other than the current peer.

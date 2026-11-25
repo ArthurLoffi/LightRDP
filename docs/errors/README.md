@@ -23,6 +23,8 @@ arthuroscarsoares@gmail.com
 - [Encryption required on the network](tls_required.md)
 - [Server cannot load the certificate](server_tls_files.md)
 - [Safety code not confirmed](safety_code_not_confirmed.md)
+- [Safety code commitment mismatch](safety_code_commitment_mismatch.md)
+- [Safety code exchange failed](safety_code_handshake_failed.md)
 
 ## For agents
 Document each error in its own `.md` file in this folder, and add a link to it in the list above. Each error must have:

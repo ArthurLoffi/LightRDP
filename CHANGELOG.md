@@ -5,11 +5,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Security
+- The safety code can no longer be matched by a man in the middle that searches for DTLS certificates until the codes on the two computers collide. Before the code is shown, the clients exchange 32-byte random nonces over the DataChannel: the joiner sends `lightrdp:commit:<SHA-256(nonce)>`, the host answers `lightrdp:nonce:<nonce>`, and the joiner reveals `lightrdp:reveal:<nonce>`, which the host checks against the commitment (spec 0009, 2026-11-24).
+
 ### Added
 - Logo and README card in `docs/assets/`: the mark as SVG (`logo_mark.svg`), the horizontal logo for dark and light backgrounds (`logo_dark.png`, `logo_light.png`) and a 1280×640 card (`readme_card.png`) shown at the top of `README.md` (2026-11-23).
+- Errors `safety code commitment mismatch` and `safety code handshake failed: <detail>`, with pages in `docs/errors/`. The joiner exits with `safety code handshake failed: timed out` when the exchange does not complete 60 seconds after `connected` (spec 0009, 2026-11-24).
 
 ### Changed
 - `README.md` is shorter: the title and intro already shown on the card, the full usage steps, the command list, the network rules and the stack list were removed or condensed into a quick start, and the details now live only in [Getting Started](docs/app/getting_started.md) and [Security](docs/app/security/README.md) (2026-11-23).
+- **Breaking:** the safety code is `SHA-256(host fingerprint || joiner fingerprint || joiner nonce || host nonce)` reduced to `NNN NNN`, and it is shown after the nonce exchange instead of right after `connected`. Clients from before this change cannot connect to clients with it (spec 0009, 2026-11-24).
+- `lightrdp:safety-code-confirmed` is ignored until the nonce exchange is done (spec 0009, 2026-11-24).
 
 ## [0.0.1] - 2026-11-21
 Git tag: `v0.0.1`.

@@ -45,6 +45,9 @@ type chat struct {
 	mu              sync.Mutex
 	channel         *webrtc.DataChannel
 	channelOpen     bool
+	handshake       safetyHandshake
+	handshakeFailed bool
+	report          func(safetyHandshakeResult)
 	localConfirmed  bool
 	remoteConfirmed bool
 	open            bool
@@ -61,6 +64,12 @@ func (c *chat) attach(dc *webrtc.DataChannel) {
 }
 
 func (c *chat) onChannelOpen() {
+	if result := c.openChannel(); result != nil {
+		c.report(*result)
+	}
+}
+
+func (c *chat) openChannel() *safetyHandshakeResult {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -69,6 +78,23 @@ func (c *chat) onChannelOpen() {
 		c.sendConfirmation()
 	}
 	c.openIfReady()
+
+	if !c.handshake.joining {
+		return nil
+	}
+	message, err := c.handshake.start()
+	if err == nil {
+		err = c.channel.SendText(message)
+	}
+	if err != nil {
+		return c.failHandshake(err)
+	}
+	return nil
+}
+
+func (c *chat) failHandshake(err error) *safetyHandshakeResult {
+	c.handshakeFailed = true
+	return &safetyHandshakeResult{chat: c, err: err}
 }
 
 func (c *chat) confirmLocal() {
@@ -92,11 +118,19 @@ func (c *chat) isOpen() bool {
 }
 
 func (c *chat) onMessage(msg webrtc.DataChannelMessage) {
+	result, handled := c.receiveHandshake(msg)
+	if result != nil {
+		c.report(*result)
+	}
+	if handled {
+		return
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if !c.remoteConfirmed {
-		if msg.IsString && string(msg.Data) == safetyCodeConfirmedMessage {
+		if c.handshake.done && msg.IsString && string(msg.Data) == safetyCodeConfirmedMessage {
 			c.remoteConfirmed = true
 			c.openIfReady()
 		}
@@ -108,6 +142,32 @@ func (c *chat) onMessage(msg webrtc.DataChannelMessage) {
 	fmt.Printf("< %s\n", sanitize(string(msg.Data)))
 }
 
+func (c *chat) receiveHandshake(msg webrtc.DataChannelMessage) (*safetyHandshakeResult, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.handshakeFailed {
+		return nil, true
+	}
+	text := string(msg.Data)
+	if c.open || !msg.IsString || !isSafetyHandshakeMessage(text) {
+		return nil, false
+	}
+
+	reply, err := c.handshake.receive(text)
+	if err == nil && reply != "" {
+		err = c.channel.SendText(reply)
+	}
+	if err != nil {
+		return c.failHandshake(err), true
+	}
+	if !c.handshake.done {
+		return nil, true
+	}
+	joinerNonce, hostNonce := c.handshake.nonces()
+	return &safetyHandshakeResult{chat: c, joinerNonce: joinerNonce, hostNonce: hostNonce}, true
+}
+
 func (c *chat) sendConfirmation() {
 	if err := c.channel.SendText(safetyCodeConfirmedMessage); err != nil {
 		fmt.Println("failed to send:", err)
@@ -115,7 +175,7 @@ func (c *chat) sendConfirmation() {
 }
 
 func (c *chat) openIfReady() {
-	if c.open || !c.channelOpen || !c.localConfirmed || !c.remoteConfirmed {
+	if c.open || !c.handshake.done || !c.channelOpen || !c.localConfirmed || !c.remoteConfirmed {
 		return
 	}
 	c.open = true
