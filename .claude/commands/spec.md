@@ -16,7 +16,7 @@ Create a new spec for: $ARGUMENTS
    - `concurrency`: state shared between goroutines, the hub, or several connections at once.
    - `errors`: new messages, new input, or new errors.
    - `logic`: the connection flow, host approval, the safety code or the chat.
-8. Run the design review: use the `security_coordinator` agent with the spec path and mode `design`.
+8. Run the design review: follow `.claude/commands/security.md`, steps 2 to 4, with the spec path and mode `design`.
    - Write each finding of its report under "Open questions" as a question to the author, with the scenario and the suggested fix. Do not change the requirements yourself.
    - Set `Design review` to `Done (YYYY-MM-DD)` with the number of findings, for example `Done (2026-11-25), 2 findings in Open questions`.
    - Do not write the report's "Pre-existing" findings in the spec. Show them only in your answer.

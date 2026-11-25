@@ -1,6 +1,6 @@
 ---
 name: security_concurrency
-description: "Reviews LightRDP specs and diffs for race conditions and unsafe shared state between goroutines. Read-only. Called by security_coordinator; do not use it directly."
+description: "Reviews LightRDP specs and diffs for race conditions and unsafe shared state between goroutines. Read-only. Started by the security review in .claude/commands/security.md; do not use it directly."
 tools: Read, Grep, Glob, Bash
 skills:
   - hunt-race-condition

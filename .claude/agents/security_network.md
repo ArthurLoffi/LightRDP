@@ -1,6 +1,6 @@
 ---
 name: security_network
-description: "Reviews LightRDP specs and diffs for flaws in the signaling WebSocket and TLS: client and server. Read-only. Called by security_coordinator; do not use it directly."
+description: "Reviews LightRDP specs and diffs for flaws in the signaling WebSocket and TLS: client and server. Read-only. Started by the security review in .claude/commands/security.md; do not use it directly."
 tools: Read, Grep, Glob, Bash
 skills:
   - hunt-websocket

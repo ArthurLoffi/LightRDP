@@ -38,13 +38,13 @@ Implement the spec: $ARGUMENTS
 
 ## 5. Security review
 Nothing is committed or pushed before this step passes: the repository is public, and a vulnerability pushed once stays in the history.
-1. Stage every change with `git add -A`, without committing, so new files show in the diff. Then use the `security_coordinator` agent with the spec path, mode `code` and the diff command `git diff origin/master`.
+1. Stage every change with `git add -A`, without committing, so new files show in the diff. Then follow `.claude/commands/security.md`, steps 2 to 4, with the spec path, mode `code` and the diff command `git diff origin/master`.
 2. For each finding in "Findings" (`Origin: introduced`):
    1. Write a test that reproduces it and fails.
    2. Fix it, following the existing patterns and every rule in `AGENTS.md`.
    3. Run step 4 again. All checks must pass.
 3. Stop and ask, without fixing, if a fix needs a breaking change, a new dependency, or a change to another feature or to the spec's scope.
-4. Run the `security_coordinator` agent again, as a recheck, with only the reviewers that had findings and the findings they must check. Do at most 2 rechecks. If findings remain after the second, stop and ask.
+4. Run steps 2 to 4 of `.claude/commands/security.md` again, as a recheck, with only the reviewers that had findings and the findings they must check. Do at most 2 rechecks. If findings remain after the second, stop and ask.
 5. Findings in "Pre-existing" are not fixed in this branch and are never written in the spec, the commit or the pull request. Keep them for the final answer to the author.
 6. Set `Code review` in the spec's "Security review" to `Passed (YYYY-MM-DD)`, with the number of rechecks and of findings fixed, for example `Passed (2026-11-25), 1 recheck, 2 findings fixed`. Do not describe how to exploit them.
 7. Set the spec `Status` to `In review`.

@@ -12,7 +12,7 @@ LightRDP is a remote help desk tool, similar to RustDesk and AnyDesk, built to b
 - `docs/`: user-facing documentation (`app/` for usage, `errors/` for known errors).
 - `specs/`: feature specs (`_TEMPLATE.md` is the template, `done/` holds merged specs).
 - `.claude/commands/`: `/spec` creates a spec, `/implement` implements a spec and opens a PR, `/security` runs the security review of a spec.
-- `.claude/agents/`: `security_coordinator` and the reviewers it starts (`security_network`, `security_concurrency`, `security_errors`, `security_logic`).
+- `.claude/agents/`: the security reviewers (`security_network`, `security_concurrency`, `security_errors`, `security_logic`) and `security_triage`, which checks their findings. The session that runs `/security`, `/spec` or `/implement` starts them.
 - `.claude/skills/`: skills preloaded by the reviewers. The `hunt-*` and `triage-validation` skills come from Claude-BugHunter (see `.claude/THIRD_PARTY_NOTICES.md`) and are not edited here; `lightrdp-security-context` adapts them to LightRDP. Skill folders use kebab-case, as required by the skill format.
 
 ## Conventions
@@ -34,7 +34,7 @@ LightRDP is a remote help desk tool, similar to RustDesk and AnyDesk, built to b
 - New features start as a spec in `specs/`, created from `specs/_TEMPLATE.md` (`/spec`).
 - Only implement specs with `Status: Approved` (`/implement`).
 - Spec status flow: `Draft` → `Approved` → `In review` → `Done`. Once merged, move the spec to `specs/done/`.
-- Security review: `/spec` runs a design review and `/implement` runs a code review with `security_coordinator`, using the reviewers listed in the spec's "Security review" section. Findings introduced by a branch are fixed, with a test, before anything is committed or pushed. Findings in code the branch did not change are shown only to the author, never written in a spec, commit or pull request.
+- Security review: `/spec` runs a design review and `/implement` runs a code review, following `.claude/commands/security.md` with the reviewers listed in the spec's "Security review" section. Findings introduced by a branch are fixed, with a test, before anything is committed or pushed. Findings in code the branch did not change are shown only to the author, never written in a spec, commit or pull request.
 
 ## Do NOT
 - Install dependencies without asking first.

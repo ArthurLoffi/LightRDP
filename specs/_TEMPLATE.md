@@ -51,7 +51,7 @@ Changes to existing features, flags, messages or contracts. Write "None" if ther
 New external dependencies. Write "None" if there are none.
 
 ## Security review
-Reviewers run by `security_coordinator`. Keep only the ones that apply: `network` (WebSocket and TLS, client and server), `concurrency` (race conditions), `errors` (exceptional conditions and error messages), `logic` (connection flow and business logic).
+Reviewers run by the security review (`.claude/commands/security.md`). Keep only the ones that apply: `network` (WebSocket and TLS, client and server), `concurrency` (race conditions), `errors` (exceptional conditions and error messages), `logic` (connection flow and business logic).
 
 | Field | Value |
 |---|---|

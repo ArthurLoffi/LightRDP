@@ -1,6 +1,6 @@
 ---
 name: security_errors
-description: "Reviews LightRDP specs and diffs for mishandled exceptional conditions: malformed input, fail-open paths and error messages. Read-only. Called by security_coordinator; do not use it directly."
+description: "Reviews LightRDP specs and diffs for mishandled exceptional conditions: malformed input, fail-open paths and error messages. Read-only. Started by the security review in .claude/commands/security.md; do not use it directly."
 tools: Read, Grep, Glob, Bash
 skills:
   - hunt-exceptional-conditions

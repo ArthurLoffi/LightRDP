@@ -1,6 +1,6 @@
 ---
 name: security_logic
-description: "Reviews LightRDP specs and diffs for business logic flaws in the connection flow: host approval, safety code and chat. Read-only. Called by security_coordinator; do not use it directly."
+description: "Reviews LightRDP specs and diffs for business logic flaws in the connection flow: host approval, safety code and chat. Read-only. Started by the security review in .claude/commands/security.md; do not use it directly."
 tools: Read, Grep, Glob, Bash
 skills:
   - hunt-business-logic
