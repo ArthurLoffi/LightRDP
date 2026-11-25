@@ -50,6 +50,15 @@ Changes to existing features, flags, messages or contracts. Write "None" if ther
 ## Dependencies
 New external dependencies. Write "None" if there are none.
 
+## Security review
+Reviewers run by the security review (`.claude/commands/security.md`). Keep only the ones that apply: `network` (WebSocket and TLS, client and server), `concurrency` (race conditions), `errors` (exceptional conditions and error messages), `logic` (connection flow and business logic).
+
+| Field | Value |
+|---|---|
+| Reviewers | network, concurrency, errors, logic |
+| Design review | Pending |
+| Code review | Pending |
+
 ## Acceptance criteria
 - [ ]
 
