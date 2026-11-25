@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -608,5 +609,114 @@ func TestJoinerInvalidRemoteMessageEnds(t *testing.T) {
 	msg := signaling.Message{Type: signaling.TypeOffer, From: "host", To: "joiner", Payload: json.RawMessage(`"invalid"`)}
 	if err := joiner.handle(msg); err == nil {
 		t.Fatal("Expected joiner to end on invalid offer, got: nil")
+	}
+}
+
+func newJoinerWithRequest(t *testing.T) *session {
+	t.Helper()
+
+	url := newTestHub(t)
+	registerProbe(t, url, "host")
+	joiner := newTestSession(t, url, "joiner")
+	if err := joiner.join("host"); err != nil {
+		t.Fatalf("Expected join sent, got: %v", err)
+	}
+	return joiner
+}
+
+func TestConnectedWaitsForSafetyHandshake(t *testing.T) {
+	host, _ := newHostWithRequest(t)
+
+	ended, err := host.onPeerState(peerState{peer: host.peer, state: webrtc.PeerConnectionStateConnected})
+	if ended || err != nil {
+		t.Fatalf("Expected host to keep running, got: ended %v, err %v", ended, err)
+	}
+	if host.question != "" {
+		t.Fatalf("Expected no safety code before the handshake, got: %q", host.question)
+	}
+	if !host.connected.Load() {
+		t.Fatal("Expected connected stored, got: not connected")
+	}
+	if host.handshakeExpired != nil {
+		t.Fatal("Expected no handshake timeout on the host, got: started")
+	}
+}
+
+func TestHostSafetyHandshakeErrorKeepsWaiting(t *testing.T) {
+	host, _ := newHostWithRequest(t)
+
+	err := host.onSafetyHandshake(safetyHandshakeResult{chat: host.chat, err: errors.New(commitmentMismatchError)})
+	if err != nil {
+		t.Fatalf("Expected host to keep running, got: %v", err)
+	}
+	if host.peer != nil || host.chat != nil || host.question != "" {
+		t.Fatalf("Expected attempt dropped, got: peer %v, question %q", host.peer, host.question)
+	}
+}
+
+func TestJoinerSafetyHandshakeErrorEnds(t *testing.T) {
+	joiner := newJoinerWithRequest(t)
+
+	err := joiner.onSafetyHandshake(safetyHandshakeResult{chat: joiner.chat, err: errors.New(commitmentMismatchError)})
+	if err == nil || err.Error() != commitmentMismatchError {
+		t.Fatalf("Expected %q, got: %v", commitmentMismatchError, err)
+	}
+}
+
+func TestSafetyHandshakeFromDroppedAttemptIgnored(t *testing.T) {
+	host, requester := newHostWithRequest(t)
+	dropped := host.chat
+	if err := host.onConfirmTimeout(); err != nil {
+		t.Fatalf("Expected timeout refuse, got: %v", err)
+	}
+	expectReject(t, requester, "host", "timed out waiting for host")
+
+	for _, result := range []safetyHandshakeResult{
+		{chat: dropped, joinerNonce: joinerNonceA, hostNonce: hostNonceA},
+		{chat: dropped, err: errors.New(commitmentMismatchError)},
+	} {
+		if err := host.onSafetyHandshake(result); err != nil {
+			t.Fatalf("Expected result from dropped attempt ignored, got: %v", err)
+		}
+	}
+	if host.question != "" {
+		t.Fatalf("Expected no prompt for dropped attempt, got: %q", host.question)
+	}
+}
+
+func TestLoopEndsJoinerOnSafetyHandshakeTimeout(t *testing.T) {
+	joiner := newJoinerWithRequest(t)
+	joiner.handshakeTimeout = 50 * time.Millisecond
+	joiner.lines = make(chan stdinLine)
+
+	ended, err := joiner.onPeerState(peerState{peer: joiner.peer, state: webrtc.PeerConnectionStateConnected})
+	if ended || err != nil {
+		t.Fatalf("Expected joiner to keep running, got: ended %v, err %v", ended, err)
+	}
+
+	result := make(chan error, 1)
+	go func() { result <- joiner.loop() }()
+
+	select {
+	case err := <-result:
+		want := handshakeFailedError + "timed out"
+		if err == nil || err.Error() != want {
+			t.Fatalf("Expected %q, got: %v", want, err)
+		}
+	case <-time.After(testTimeout):
+		t.Fatal("Expected loop to end before timeout")
+	}
+}
+
+func TestSafetyHandshakeStopsJoinerTimeout(t *testing.T) {
+	joiner := newJoinerWithRequest(t)
+	joiner.handshakeExpired = make(chan time.Time)
+
+	err := joiner.onSafetyHandshake(safetyHandshakeResult{chat: joiner.chat, err: errors.New(commitmentMismatchError)})
+	if err == nil {
+		t.Fatal("Expected joiner to end, got: nil")
+	}
+	if joiner.handshakeExpired != nil {
+		t.Fatal("Expected handshake timeout stopped, got: running")
 	}
 }

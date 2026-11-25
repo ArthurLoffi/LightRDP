@@ -31,7 +31,7 @@ go run ./cmd/lightrdp join HOST --server wss://<SERVER_IP>:8080/ws --ca server.c
 Every command has `--help`. To build the binary, run `go build ./cmd/lightrdp`. For all options, the network setup and what each prompt means, see [Getting Started](docs/app/getting_started.md).
 
 ## How it works
-The signaling server (`lightrdp server`) registers clients by ID and relays the WebRTC negotiation over `wss://`; it never sees the peer-to-peer traffic. The host and the client then connect directly and chat over a DataChannel. The safety code comes from the DTLS certificates of that direct connection, so a swapped connection shows different codes on the two machines. See [Security](docs/app/security/README.md).
+The signaling server (`lightrdp server`) registers clients by ID and relays the WebRTC negotiation over `wss://`; it never sees the peer-to-peer traffic. The host and the client then connect directly and chat over a DataChannel. The safety code comes from the DTLS certificates of that direct connection and from a random value chosen by each side, exchanged with a commit and reveal step before the code is shown. A swapped connection shows different codes on the two machines, and an attacker cannot search for certificates that make them match. See [Security](docs/app/security/README.md).
 
 Built with Go, [pion/webrtc](https://github.com/pion/webrtc) and [coder/websocket](https://github.com/coder/websocket).
 

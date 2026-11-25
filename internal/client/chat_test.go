@@ -90,6 +90,37 @@ func TestChatOpensOnlyAfterBothConfirmations(t *testing.T) {
 	}
 }
 
+func confirmationMessage() webrtc.DataChannelMessage {
+	return webrtc.DataChannelMessage{IsString: true, Data: []byte(safetyCodeConfirmedMessage)}
+}
+
+func TestChatIgnoresConfirmationBeforeHandshake(t *testing.T) {
+	c := &chat{}
+
+	c.onMessage(confirmationMessage())
+
+	if c.remoteConfirmed {
+		t.Fatal("Expected confirmation before the handshake ignored, got: confirmed")
+	}
+}
+
+func TestChatIgnoresMessagesAfterHandshakeFailed(t *testing.T) {
+	var results []safetyHandshakeResult
+	c := &chat{report: func(result safetyHandshakeResult) { results = append(results, result) }}
+
+	c.onMessage(webrtc.DataChannelMessage{IsString: true, Data: []byte(revealMessagePrefix + "00")})
+	if len(results) != 1 || results[0].chat != c || results[0].err == nil || results[0].err.Error() != handshakeFailedError+"invalid reveal" {
+		t.Fatalf("Expected one 'invalid reveal' failure, got: %+v", results)
+	}
+
+	c.handshake.done = true
+	c.onMessage(confirmationMessage())
+	c.onMessage(webrtc.DataChannelMessage{IsString: true, Data: []byte(commitMessagePrefix + "00")})
+	if c.remoteConfirmed || len(results) != 1 {
+		t.Fatalf("Expected messages after the failure ignored, got: confirmed %v, results %+v", c.remoteConfirmed, results)
+	}
+}
+
 func TestHelperProcess(t *testing.T) {
 	switch os.Getenv(helperEnv) {
 	case "chat":
@@ -116,18 +147,36 @@ func runChatHelper(t *testing.T) {
 	}
 	defer remote.Close()
 
-	remoteOpen := make(chan struct{})
+	remoteHandshake := &safetyHandshake{joining: true}
 	remote.OnDataChannel(func(dc *webrtc.DataChannel) {
 		dc.OnOpen(func() {
-			for _, text := range []string{safetyCodeConfirmedMessage, "sent before local confirmation"} {
-				if err := dc.SendText(text); err != nil {
-					fmt.Fprintf(os.Stderr, "send: %v\n", err)
-				}
+			if err := dc.SendText(safetyCodeConfirmedMessage); err != nil {
+				fmt.Fprintf(os.Stderr, "send: %v\n", err)
 			}
-			close(remoteOpen)
+			commit, err := remoteHandshake.start()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "start: %v\n", err)
+				return
+			}
+			if err := dc.SendText(commit); err != nil {
+				fmt.Fprintf(os.Stderr, "send: %v\n", err)
+			}
 		})
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			text := string(msg.Data)
+			if isSafetyHandshakeMessage(text) {
+				reveal, err := remoteHandshake.receive(text)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "handshake: %v\n", err)
+					return
+				}
+				for _, text := range []string{reveal, safetyCodeConfirmedMessage, "sent before local confirmation"} {
+					if err := dc.SendText(text); err != nil {
+						fmt.Fprintf(os.Stderr, "send: %v\n", err)
+					}
+				}
+				return
+			}
 			fmt.Fprintf(os.Stderr, "received %q\n", text)
 			if text == "world" {
 				if err := dc.SendText(chatReply); err != nil {
@@ -141,15 +190,19 @@ func runChatHelper(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected data channel, got: %v", err)
 	}
-	c := &chat{}
+	results := make(chan safetyHandshakeResult, 1)
+	c := &chat{report: func(result safetyHandshakeResult) { results <- result }}
 	c.attach(dc)
 
 	connectTestPeers(t, local, remote)
 
 	select {
-	case <-remoteOpen:
+	case result := <-results:
+		if result.err != nil {
+			t.Fatalf("Expected handshake done, got: %v", result.err)
+		}
 	case <-time.After(helperTimeout):
-		t.Fatal("Expected remote channel open before timeout")
+		t.Fatal("Expected handshake done before timeout")
 	}
 	fmt.Println("waiting for local confirmation")
 	time.Sleep(time.Second)

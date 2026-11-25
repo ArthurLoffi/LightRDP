@@ -45,7 +45,17 @@ After the two computers connect, both show the same 6-digit code, for example:
 ```
 Safety code: 482 913
 ```
-The code is calculated from the encryption keys the two computers actually used to connect. If someone is in the middle, the codes on the two screens are different.
+The code is calculated from the encryption keys the two computers actually used to connect, and from a random value chosen by each computer. If someone is in the middle, the codes on the two screens are different.
+
+### How the random values are exchanged
+After the two computers connect, and before the code is shown, they exchange the random values over the encrypted connection, in this order:
+1. The client sends a fingerprint (SHA-256) of its random value, without the value itself.
+2. The host sends its random value.
+3. The client reveals its random value. The host checks that it matches the fingerprint from step 1.
+
+The client is bound to its value before it sees the host's value, and the host sends its value without knowing the client's value. This stops someone in the middle from trying many encryption keys until the two codes match: whatever they do, the codes match by chance only once in a million connection attempts, and every failed attempt is visible to both people. If the check in step 3 fails, the connection closes with [Safety code commitment mismatch](../../errors/safety_code_commitment_mismatch.md). If a message is missing, repeated or out of order, it closes with [Safety code exchange failed](../../errors/safety_code_handshake_failed.md).
+
+Both computers must run a LightRDP version with this exchange. Older versions cannot connect to newer ones.
 
 1. Compare the code with the other person by phone, in person, or another way that does not go through LightRDP.
 2. On the host, answer `y` to `Accept "<ID>" with this code? [y/N]` only if the code is the same and you know who is connecting.
@@ -58,3 +68,4 @@ If the codes are different, answer `n`, check the server address and certificate
 ## Things to know
 - The host is asked only after the two computers are connected. Anyone who knows the host ID can make the host connect and learn the host's IP addresses before the host answers. No chat message is exchanged before both people confirm.
 - The server still sees the IP addresses of both computers.
+- A new code is calculated for every connection, even between the same two computers.

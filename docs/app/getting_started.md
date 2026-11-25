@@ -85,11 +85,12 @@ On the host, this appears:
 ```
 Connection request from "<YOUR_ID>"
 ```
-The two computers then connect, and both show the same safety code:
+The two computers then connect, exchange random values for the code, and both show the same safety code:
 ```
 Peer connection state changed: connected
 Safety code: 482 913
 ```
+The code is different on every connection. Both computers must run the same LightRDP version (`lightrdp version`): older versions cannot connect to newer ones.
 The host is asked:
 ```
 Accept "<YOUR_ID>" with this code? [y/N]
@@ -172,6 +173,8 @@ Press `Ctrl+C` in the server terminal to stop the server.
 | `error: connection refused: refused by host` | [Refused by the host](../errors/refused_by_host.md) |
 | `error: connection refused: timed out waiting for host` | [Host did not answer in time](../errors/confirmation_timeout.md) |
 | `error: safety code not confirmed` or `error: connection refused: safety code not confirmed` | [Safety code not confirmed](../errors/safety_code_not_confirmed.md) |
+| `error: safety code commitment mismatch` or `Request from "<ID>" dropped: safety code commitment mismatch` | [Safety code commitment mismatch](../errors/safety_code_commitment_mismatch.md) |
+| `error: safety code handshake failed: ...` or `Request from "<ID>" dropped: safety code handshake failed: ...` | [Safety code exchange failed](../errors/safety_code_handshake_failed.md) |
 | `error: signaling server disconnected: ...` | [Signaling server disconnected](../errors/server_disconnected.md) |
 | `error: peer connection failed` | [Peer connection failed](../errors/peer_connection_failed.md) |
 | Server: `--cert and --key must be used together` | [Certificate or key missing](../errors/tls_flags_incomplete.md) |
