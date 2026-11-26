@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The safety code can no longer be matched by a man in the middle that searches for DTLS certificates until the codes on the two computers collide. Before the code is shown, the clients exchange 32-byte random nonces over the DataChannel: the joiner sends `lightrdp:commit:<SHA-256(nonce)>`, the host answers `lightrdp:nonce:<nonce>`, and the joiner reveals `lightrdp:reveal:<nonce>`, which the host checks against the commitment (spec 0009, 2026-11-24).
 
 ### Added
+- GitHub Actions workflow `.github/workflows/ci.yml` (`CI / test`). It runs on pull requests and on pushes to `master`, with Go from `go.mod`: `go build ./...`, `go vet ./...` and `go test ./...` on `ubuntu-latest`. The workflow token is read-only and the actions are pinned to commit SHAs (spec 0010, 2026-11-26).
 - Logo and README card in `docs/assets/`: the mark as SVG (`logo_mark.svg`), the horizontal logo for dark and light backgrounds (`logo_dark.png`, `logo_light.png`) and a 1280×640 card (`readme_card.png`) shown at the top of `README.md` (2026-11-23).
 - Errors `safety code commitment mismatch` and `safety code handshake failed: <detail>`, with pages in `docs/errors/`. The joiner exits with `safety code handshake failed: timed out` when the exchange does not complete 60 seconds after `connected` (spec 0009, 2026-11-24).
 
