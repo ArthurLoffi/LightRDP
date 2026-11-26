@@ -27,7 +27,7 @@ Implement the spec: $ARGUMENTS
 3. Do not add comments to the code.
 4. Add tests for every requirement. Never weaken or special-case tests to make them pass.
 5. Update:
-   - `CHANGELOG.md`, under `[Unreleased]` with today's date.
+   - `CHANGELOG.md`, under `[Unreleased]`, following the "Changelog" section of `AGENTS.md`.
    - `docs/app/` for the new feature or contract change.
    - `docs/errors/` for every new error in the spec's "Errors" section.
    - `README.md` if the getting-started instructions changed.

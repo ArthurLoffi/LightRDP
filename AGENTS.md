@@ -21,8 +21,43 @@ LightRDP is a remote help desk tool, similar to RustDesk and AnyDesk, built to b
 - Tests: never write code that only exists to make tests pass (no special-casing tests, no weakened assertions).
 - Tests: with `coder/websocket`, a read whose context expires closes the connection. Never retry a read on the same connection after a timeout.
 - Features: avoid changing other features when adding a new one. ALWAYS ask before making breaking changes to existing features.
-- Changelog: always update `CHANGELOG.md` for code changes, with the date and version tag.
 - README: keep `README.md` up to date with the current getting-started instructions, and link to the documentation pages (`docs/app/`, `docs/errors/`).
+
+## Changelog
+
+This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/).
+
+### When to update
+- Every user-visible change (command, flag, behavior, output, protocol, bug fix, security fix) requires an entry in `CHANGELOG.md`.
+- Internal refactors, tests, CI changes, and documentation-only changes do **not** go in the changelog, unless they affect users.
+- Always add entries under `## [Unreleased]` at the top of the file, in the correct category.
+- Do not create new versions or dates. That only happens when I explicitly ask for a release.
+
+### Categories (use only these, in this order)
+- `### Added`: new features
+- `### Changed`: changes to existing features
+- `### Deprecated`: features that will be removed
+- `### Removed`: features that were removed
+- `### Fixed`: bug fixes
+- `### Security`: vulnerability fixes
+
+### Entry format
+- One line per change, starting with a verb in the imperative (e.g., "Add `--timeout` to the `client` command").
+- Write for the people who use the program, not for people reading the code. Describe what changes for the user, not how it was implemented.
+- Wrap commands and flags in backticks.
+- Breaking changes must start with **BREAKING:**.
+- Do not reorder or rename existing sections; only append lines.
+
+### Example
+```
+## [Unreleased]
+
+### Added
+- Add `--access-ttl` to set the validity period of the access code.
+
+### Fixed
+- Fix silent disconnect when the host loses network for more than 30 seconds.
+```
 
 ## Code Standards
 - Follow the project's error convention, and document every new error in `docs/errors/`.
