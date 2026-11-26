@@ -19,6 +19,6 @@
 
 ## Checklist
 - [ ] Tests added or updated
-- [ ] `CHANGELOG.md` updated
+- [ ] `CHANGELOG.md` updated (user-visible change)
 - [ ] `docs/app/` updated (new feature or contract change)
 - [ ] `docs/errors/` updated (new error)
